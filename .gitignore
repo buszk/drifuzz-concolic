@@ -1,0 +1,23 @@
+# log and output file
+log*
+*.log
+*.csv
+*.out
+
+.zcache
+
+# Testing file
+perf*
+*.txt
+.gdb_history
+
+# Compiled pyc
+*.pyc
+
+# Panda images
+*.iso
+*.qcow2
+
+# Panda record & replay files
+*-snp
+*.plog
