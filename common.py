@@ -5,12 +5,12 @@ from tempdir import TempDir
 from os.path import join, dirname, abspath
 
 target = "alx"
-
 extra_args = ['-m', '1G']
 extra_args += ["-kernel", "/home/zekun/Workspace/git/Drifuzz/linux-module-build/arch/x86_64/boot/bzImage"]
 extra_args += ["-append", "console=ttyS1 nokaslr root=/dev/sda earlyprintk=serial"]
 extra_args += ['-net', 'user']
 extra_args += ['-net', 'nic,model={}'.format(target)]
+# This has to be the last
 extra_args += ['-device', 'drifuzz']
 
 BASE_DIR = dirname(abspath(__file__))

@@ -13,8 +13,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--record', default=False, action="store_true")
 parser.add_argument('--replay', default=False, action="store_true")
 parser.add_argument('--process', default=False, action="store_true")
+parser.add_argument('--socket', default="", action="store")
+parser.add_argument('--target', default="", action="store")
 parser.add_argument('--all', default=False, action="store_true")
 args = parser.parse_args()
+
+if args.target != "":
+    target = args.target
+
+if args.socket != "" and "drifuzz" in extra_args:
+    extra_args.remove("drifuzz")
+    extra_args += ["drifuzz,socket={0}".format(args.socket)]
 
 if not (args.record or args.replay or args.process or args.all):
     print "Set an argument"
