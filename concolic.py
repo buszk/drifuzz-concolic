@@ -63,6 +63,7 @@ class SocketThread (threading.Thread):
                             connection.send(_ret)
                         elif ret != None and isinstance(ret[0], bytes):
                             connection.send(ret[0])
+                            connection.send(struct.pack('<Q', ret[1]))
 
                     except socket.timeout:
                         pass
@@ -124,7 +125,7 @@ class CommandHandler:
     def get_read_data(self, k, size):
         idx = self.get_read_idx(k, size)
         data = self.get_data_by_size(size, idx)
-        return self.bytes_to_int(data)
+        return (self.bytes_to_int(data), idx, )
     
     def get_dma_idx(self, k, size):
         n = 0
@@ -139,7 +140,7 @@ class CommandHandler:
         
     def get_dma_data(self, k, size):
         idx = self.get_dma_idx(k, size)
-        return self.get_data_by_size(size, idx)
+        return (self.get_data_by_size(size, idx), idx, )
 
     
     def handle(self, type:str, *args):
@@ -151,14 +152,14 @@ class CommandHandler:
 
     def handle_read(self, region, addr, size):
         k = (region, addr, size)
-        ret = self.get_read_data(k, size)
+        ret, idx = self.get_read_data(k, size)
         print("[%.4f] read  #%d[%lx][%d] as %x\n" % (time.time(), region, addr, size, ret))
-        return (ret,)
+        return (ret, idx, )
     
     def handle_dma_buf(self, size):
-        ret = self.get_dma_data(size)
+        ret, idx = self.get_dma_data(size)
         print("[%.4f] dma_buf [%x]\n" % (time.time(), size))
-        return (ret,)
+        return (ret, idx, )
 
     def handle_reset(self):
         # TODO Check coverage
@@ -270,7 +271,7 @@ class GlobalModel():
                     setattr(self, key, d)
 
 env={"LD_LIBRARY_PATH":"/home/zekun/bpf/install/lib"}   
-                 
+
 class Panda:
     def __init__(self):
         self.cmd = ["python2", "./analyze.py",
