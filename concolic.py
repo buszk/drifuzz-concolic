@@ -268,11 +268,13 @@ class GlobalModel():
                             k = entry['key']
                         d[k] = entry['value']
                     setattr(self, key, d)
-                    
+
+env={"LD_LIBRARY_PATH":"/home/zekun/bpf/install/lib"}   
+                 
 class Panda:
     def __init__(self):
         self.cmd = ["python2", "./analyze.py",
-            "--record", 
+            "--record", "--replay",
             "--target", "alx",
             "--socket", qemu_socket]
 
@@ -282,23 +284,25 @@ class Panda:
         self.process = subprocess.Popen(self.cmd,
                                         stdin=slave,
                                         stdout=None,
-                                        stderr=None)
+                                        stderr=None,
+                                        env=env)
         self.process.wait()
 
-def main():
+def concolic_record():
     global_module = GlobalModel()
     command_handler = CommandHandler(global_module)
     socket_thread = SocketThread(command_handler, qemu_socket)
 
     socket_thread.start()
 
-    time.sleep(1)
+    time.sleep(.1)
 
     panda = Panda()
     panda.run()
     socket_thread.stop()
 
-
+def main():
+    concolic_record()
 
 
 if __name__ == "__main__":
