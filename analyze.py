@@ -18,21 +18,23 @@ parser.add_argument('--target', default="", action="store")
 parser.add_argument('--all', default=False, action="store_true")
 args = parser.parse_args()
 
+target = "e1000"
 if args.target != "":
     target = args.target
 
-if args.socket != "" and "drifuzz" in extra_args:
-    extra_args.remove("drifuzz")
-    extra_args += ["drifuzz,socket={0}".format(args.socket)]
+if args.socket != "":
+    extra_args = get_extra_args_with_socket(target, args.socket)
+else:
+    extra_args = get_extra_args(target)
 
 if not (args.record or args.replay or args.process or args.all):
     print "Set an argument"
     sys.exit(1)
 
 if args.record or args.all:
-    create_recording(qemu_path, qcow, snapshot, cmd, \
-            copy_dir, recording_path, expect_prompt, cdrom, \
-            extra_args=extra_args)
+    create_recording(qemu_path, qcow, get_snapshot(target), \
+            get_cmd(target), copy_dir, get_recording_path(target), \
+            expect_prompt, cdrom, extra_args=extra_args)
 
 if args.replay or args.all:
     cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
@@ -42,14 +44,14 @@ if args.replay or args.all:
         "-panda", "tainted_mmio",
         #"-panda", "tainted_instr",
         "-panda", "tainted_branch",
-        "-pandalog", pandalog]
+        "-pandalog", get_pandalog(target)]
     cmd += extra_args
     print " ".join(cmd)
     subprocess32.check_call(cmd)
 
 if args.process or args.all:
     tbms = []
-    with PLogReader(pandalog) as plr:
+    with PLogReader(get_pandalog(target)) as plr:
         for m in plr:
             if m.tainted_branch:
                 tb = m.tainted_branch
