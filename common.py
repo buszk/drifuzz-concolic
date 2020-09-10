@@ -1,6 +1,5 @@
 
 import os, sys
-import subprocess32 
 from tempdir import TempDir
 from os.path import join, dirname, abspath
 
@@ -20,29 +19,29 @@ def get_snapshot(target):
     return "{}_root".format(target)
 
 def get_cmd(target):
-    return [join(copy_dir, "driver-{}.sh".format(target))]
+    return [join(copy_dir, f"driver-{target}.sh")]
 
 def get_recording_path(target):
     return join(BASE_DIR, target)
 
 def get_pandalog(target):
-    return join(BASE_DIR, "{}.plog".format(target))
+    return join(BASE_DIR, f"{target}.plog")
 
 common_extra_args = ['-m', '1G']
-common_extra_args += ["-kernel", "{}/linux-module-build/arch/x86_64/boot/bzImage".format(drifuzz)]
+common_extra_args += ["-kernel", f"{drifuzz}/linux-module-build/arch/x86_64/boot/bzImage"]
 common_extra_args += ["-append", "console=ttyS1 nokaslr root=/dev/sda earlyprintk=serial"]
 
 def get_extra_args(target):
     extra_args = common_extra_args
     extra_args += ['-net', 'user']
-    extra_args += ['-net', 'nic,model={}'.format(target)]
+    extra_args += ['-net', f'nic,model={target}']
     extra_args += ['-device', 'drifuzz']
     return extra_args
 
 def get_extra_args_with_socket(target, socket):
     extra_args = common_extra_args
     extra_args += ['-net', 'user']
-    extra_args += ['-net', 'nic,model={}'.format(target)]
-    extra_args += ['-device', 'drifuzz,socket={}'.format(socket)]
+    extra_args += ['-net', f'nic,model={target}']
+    extra_args += ['-device', f'drifuzz,socket={socket}']
     return extra_args
 

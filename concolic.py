@@ -275,16 +275,21 @@ class GlobalModel():
                         d[k] = entry['value']
                     setattr(self, key, d)
 
-env={"LD_LIBRARY_PATH":"/home/zekun/bpf/install/lib"}   
+env={
+    "LD_LIBRARY_PATH":"/home/zekun/bpf/install/lib",
+    **os.environ
+}
+
 
 class Panda:
     def __init__(self):
-        self.cmd = ["python2", "./analyze.py",
+        self.cmd = ["python3", "./analyze.py",
             "--record", "--replay",
             "--target", "alx",
             "--socket", qemu_socket]
 
     def run(self):
+        subprocess.check_call(["which", "python3"])
         print(" ".join(self.cmd))
         master, slave = pty.openpty()
         self.process = subprocess.Popen(self.cmd,

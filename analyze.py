@@ -1,6 +1,6 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 import os, sys
-import subprocess32 
+import subprocess
 from tempdir import TempDir
 from os.path import join, dirname, abspath
 from common import *
@@ -28,7 +28,7 @@ else:
     extra_args = get_extra_args(target)
 
 if not (args.record or args.replay or args.process or args.all):
-    print "Set an argument"
+    print("Set an argument")
     sys.exit(1)
 
 if args.record or args.all:
@@ -46,8 +46,8 @@ if args.replay or args.all:
         "-panda", "tainted_branch",
         "-pandalog", get_pandalog(target)]
     cmd += extra_args
-    print " ".join(cmd)
-    subprocess32.check_call(cmd)
+    print(" ".join(cmd))
+    subprocess.check_call(cmd)
 
 if args.process or args.all:
     tbms = []
@@ -60,12 +60,13 @@ if args.process or args.all:
                     tbms.append(m)
             if m.tainted_instr:
                 pass
-                #print hex(m.pc)
-                #print hex(m.instr)
-                #print type(m)
+                #print(hex(m.pc))
+                #print(hex(m.instr))
+                #print(type(m))
 
 
     for tbm in tbms:
-        print 'pc: {0}, ptr: {1}, tcn: {2}'.format(hex(tbm.pc), 
-                        hex(tbm.tainted_branch.taint_query[0].ptr),
-                        tbm.tainted_branch.taint_query[0].tcn)
+        print(f"target: {target}")
+        print(f"pc: {hex(tbm.pc)},"
+                f"ptr: {hex(tbm.tainted_branch.taint_query[0].ptr)}, " +
+                f"tcn: {tbm.tainted_branch.taint_query[0].tcn}")
