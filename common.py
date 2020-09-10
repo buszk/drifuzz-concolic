@@ -14,8 +14,7 @@ qcow = join(BASE_DIR, "buster.qcow2")
 expect_prompt = "root@syzkaller:~#"
 cdrom = "ide1-cd0"
 copy_dir = join(BASE_DIR, "copy-dir")
-home=os.path.expanduser("~")
-drifuzz = join(home, "Workspace/git/Drifuzz")
+drifuzz = join(BASE_DIR, "..", "Drifuzz")
 
 def get_snapshot(target):
     return "{}_root".format(target)
@@ -30,7 +29,7 @@ def get_pandalog(target):
     return join(BASE_DIR, "{}.plog".format(target))
 
 common_extra_args = ['-m', '1G']
-common_extra_args += ["-kernel", "/home/zekun/Workspace/git/Drifuzz/linux-module-build/arch/x86_64/boot/bzImage"]
+common_extra_args += ["-kernel", "{}/linux-module-build/arch/x86_64/boot/bzImage".format(drifuzz)]
 common_extra_args += ["-append", "console=ttyS1 nokaslr root=/dev/sda earlyprintk=serial"]
 
 def get_extra_args(target):
