@@ -4,7 +4,7 @@ import time
 from common import *
 import argparse
 
-from concolic import GlobalModel, CommandHandler, SocketThread, qemu_socket
+from drifuzz_util import GlobalModel, CommandHandler, SocketThread, qemu_socket
 
 
 parser = argparse.ArgumentParser()
