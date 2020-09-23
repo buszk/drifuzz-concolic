@@ -78,12 +78,12 @@ class SocketThread (threading.Thread):
 
 class CommandHandler:
 
-    def __init__(self, gm):
+    def __init__(self, gm, seed=''):
         self.gm = gm
         self.read_cnt:dict = {}
         self.dma_cnt:dict = {}
         
-        with open("random_seed", 'rb') as infile:
+        with open(seed, 'rb') as infile:
             self.payload = infile.read()
             print(type(self.payload))
             self.payload_len = len(self.payload)
