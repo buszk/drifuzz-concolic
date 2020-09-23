@@ -34,6 +34,10 @@ if args.record or args.all:
             expect_prompt, cdrom, extra_args=extra_args)
 
 if args.replay or args.all:
+    env={
+        "LD_PRELOAD":"/home/zekun/bpf/install/lib/libz3.so",
+        **os.environ
+    }
     cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
         "-replay", target,
         #"-panda", "callstack_instr",
@@ -44,7 +48,7 @@ if args.replay or args.all:
         "-pandalog", get_pandalog(target)]
     cmd += extra_args
     print(" ".join(cmd))
-    subprocess.check_call(cmd)
+    subprocess.check_call(cmd, env=env)
 
 if args.process or args.all:
     tbms = []

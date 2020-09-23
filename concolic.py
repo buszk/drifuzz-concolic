@@ -275,12 +275,6 @@ class GlobalModel():
                         d[k] = entry['value']
                     setattr(self, key, d)
 
-env={
-    "LD_LIBRARY_PATH":"/home/zekun/bpf/install/lib",
-    **os.environ
-}
-
-
 class Panda:
     def __init__(self):
         self.cmd = ["python3", "./analyze.py",
@@ -296,7 +290,7 @@ class Panda:
                                         stdin=slave,
                                         stdout=None,
                                         stderr=None,
-                                        env=env)
+                                        env=os.environ)
         self.process.wait()
 
 def concolic_record():
