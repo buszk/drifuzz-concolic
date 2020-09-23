@@ -19,7 +19,7 @@ def get_snapshot(target):
     return "{}_root".format(target)
 
 def get_cmd(target):
-    return [join(copy_dir, f"driver-{target}.sh")]
+    return [join(copy_dir, "prog-eth-up-down.sh"), target]
 
 def get_recording_path(target):
     return join(BASE_DIR, target)
