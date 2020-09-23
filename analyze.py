@@ -22,10 +22,7 @@ target = "e1000"
 if args.target != "":
     target = args.target
 
-if args.socket != "":
-    extra_args = get_extra_args_with_socket(target, args.socket)
-else:
-    extra_args = get_extra_args(target)
+extra_args = get_extra_args(target, socket=args.socket)
 
 if not (args.record or args.replay or args.process or args.all):
     print("Set an argument")
