@@ -28,7 +28,7 @@ opts = {
     Command.DMA_BUF: {
         'func': 'dma_buf',
         'argbytes': 8,
-        'argfmt': '<QQ',
+        'argfmt': '<Q',
         'retfmt': ''
     },
     Command.EXEC_INIT: {
@@ -53,7 +53,7 @@ opts = {
         'func': 'vm_kasan',
         'argbytes': 0,
         'argfmt': '',
-        'retfmt': ''
+        'retfmt': '<Q'
     },
     Command.REQ_RESET: {
         'func': 'req_reset',
