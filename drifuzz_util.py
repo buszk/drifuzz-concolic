@@ -78,7 +78,7 @@ class SocketThread (threading.Thread):
 
 class CommandHandler:
 
-    def __init__(self, gm, seed=''):
+    def __init__(self, gm, seed='random_seed'):
         self.gm = gm
         self.read_cnt:dict = {}
         self.dma_cnt:dict = {}
