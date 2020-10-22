@@ -54,7 +54,6 @@ def parse_concolic():
             for i in range(size):
                 input2seed[input_index+i] = seed_index+i
     copy = orig
-    copy = bytearray(4096)
     with open(join(args.out, '0'), 'wb') as o:
         o.write(orig)
 
