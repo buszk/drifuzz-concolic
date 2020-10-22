@@ -17,6 +17,7 @@ if not exists(args.out):
 
 def run_concolic():
     global_module = GlobalModel()
+    global_module.load_data()
     command_handler = CommandHandler(global_module, seed=args.seed)
     socket_thread = SocketThread(command_handler, qemu_socket)
 
@@ -25,12 +26,14 @@ def run_concolic():
     time.sleep(.1)
 
     cmd = ["python3", "./analyze.py",
-            "--record", "--replay",
+            "--record",
+            "--replay",
             "--target", args.target,
             "--socket", qemu_socket]
     
     p = subprocess.Popen(cmd, env=os.environ)
     p.wait()
+    global_module.save_data()
 
     socket_thread.stop()
 
