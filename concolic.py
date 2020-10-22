@@ -54,7 +54,11 @@ def parse_concolic():
             for i in range(size):
                 input2seed[input_index+i] = seed_index+i
     copy = orig
-    out_index = 1
+    copy = bytearray(4096)
+    with open(join(args.out, '0'), 'wb') as o:
+        o.write(orig)
+
+    out_index = -1
     warned = False
     with open('/tmp/drifuzz_path_constraints', 'r') as f:
         for line in f:
@@ -65,7 +69,9 @@ def parse_concolic():
                 with open(join(args.out, str(out_index)), 'wb') as o:
                     o.write(copy)
                 copy = orig
-                out_index += 1
+            if 'Count:' in line:
+                splited = line.split(' ')
+                out_index = int(splited[1])
             if 'Inverted value' in line:
                 splited = line.split(' ')
                 assert(splited[0] == 'Inverted')
