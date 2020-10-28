@@ -30,7 +30,6 @@ class SocketThread (threading.Thread):
         while not self.stopped():
             sock.settimeout(0.1)
             try:
-                print("accepting")
                 connection, _ = sock.accept()
                 print("Got connection")
             except socket.timeout:
@@ -42,7 +41,6 @@ class SocketThread (threading.Thread):
                         ty: bytearray[8] = connection.recv(8)
                         if ty == b'':
                             break
-                        print(ty)
                         _ty = struct.unpack('<Q', ty)[0]
                         opt = opts[Command(_ty)]
                         args:bytearray[opt['argbytes']] = connection.recv(opt['argbytes'])
