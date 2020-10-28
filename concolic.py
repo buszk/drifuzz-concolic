@@ -15,6 +15,14 @@ args = parser.parse_args()
 if not exists(args.out):
     os.mkdir(args.out)
 
+def bytearray_set(bs, ind, val):
+    if ind < len(bs):
+        bs[ind] = val
+    else:
+        bs.extend(b'\x00'*(ind-len(bs)))
+        bs.append(val)
+
+
 def run_concolic():
     global_module = GlobalModel()
     global_module.load_data()
@@ -83,7 +91,7 @@ def parse_concolic():
                 assert(new_val >= 0 and new_val <= 255)
                 if input_index in input2seed:
                     seed_index = input2seed[input_index]
-                    copy[seed_index] = new_val
+                    bytearray_set(copy, seed_index, new_val)
                 elif not warned:
                     warned = True
                     print('Some input_index is not mapped to seed_index')
