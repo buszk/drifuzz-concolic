@@ -58,7 +58,7 @@ def run_concolic(target, inp):
     # shutil.rmtree('out')
     print(f'Executing input {inp}')
     with open('concolic.log', 'a+') as f:
-        cmd = ['python3', 'concolic.py', target, inp, 'out']
+        cmd = ['./concolic.py', target, inp, 'out']
         p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=f, stderr=f)
         p.wait()
         assert(p.returncode == 0)

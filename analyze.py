@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S python3 -u
 import os, sys
 import subprocess
 from tempdir import TempDir
