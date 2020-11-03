@@ -16,6 +16,16 @@ class Cond(IntEnum):
 br_model = {} #{br: Cond}
 
 def best(tup1, tup2):
+    """ Choose between two converge test result
+    Args:
+        tup1: first converge result
+        tup2: second converge result
+
+    Returns:
+        tup: the better result
+        same (bool): if both sides are the same
+
+    """
     print('[search]: best', 'true', tup1[0], tup1[2], 'false', tup2[0], tup2[2])
     if tup1[2] and not tup2[2]:
         # Only the first converge
@@ -50,9 +60,19 @@ def print_model(model):
         print(f'    {hex(key)}: {value}')
     
 def get_next_path(model):
+    """Parse and choose the next branch to flip from model
+    Args:
+        model (dict): input model
+
+    Returns:
+        result: branch index to flip
+        path: the path of last execution
+        br_pc: the flipped branch program counter
+    """
     print('[search]: get_next_path')
     result = -1
     path = []
+    br_pc = 0
     with open('/tmp/drifuzz_path_constraints', 'r') as f:
         for line in f:
             if "Count: " not in line:
@@ -72,7 +92,8 @@ def get_next_path(model):
                 continue
             if model[pc] != condition and result == -1:
                 result = count
-    return result, path
+                br_pc = pc
+    return result, path, br_pc
 
 def num_unique_mmio():
     print('[search]: num_unique_mmio')
@@ -102,6 +123,11 @@ def num_concolic_branches():
 
 
 def run_concolic(target, inp):
+    """Run concolic script
+    Args:
+        target (str): target module
+        inp (str): input file
+    """
     print('[search]: run_concolic')
     # shutil.rmtree('out')
     print(f'Executing input {inp}')
@@ -112,29 +138,58 @@ def run_concolic(target, inp):
         assert(p.returncode == 0)
 
 def execute(model, input):
+    """Execute model given initial input
+    Args:
+        model (dict): input model
+        input (bytearray): initial seed
+
+    Returns:
+        score: score of given model
+        output (bytearray): mutated output
+        converged (bool): whether the model converged
+        path (list): concolic pc's
+    """
     print('[search]: execute')
     with open('out/0', 'wb') as f:
         f.write(input)
     run_concolic('ath10k_pci', 'out/0')
-    curr_count, path = get_next_path(model)
-    # remaining_run = 10
-    remaining_run = 5
+    curr_count, path, br_pc = get_next_path(model)
+    remaining_run = 10
+    # remaining_run = 5
     while remaining_run > 0:
         
         if (curr_count < 0):
             break
         run_concolic('ath10k_pci', f'out/{str(curr_count)}')
-        curr_count, path = get_next_path(model)
-        remaining_run -= 1
+        curr_count, path, br_pc = get_next_path(model)
+
+        # Dec remaining_run only when flipping the testing branch
+        for key, _ in model.items():
+            print(f"br_pc {hex(br_pc)}, {hex(key)}")
+            if key == br_pc:
+                remaining_run -= 1
+            break
     
     if remaining_run == 0:
-        return 0, file_to_bytes('out/0'), False, path
+        return num_concolic_branches(), file_to_bytes('out/0'), False, path
     
     return num_concolic_branches(), file_to_bytes('out/0'), True, path
     
 
 
 def converge(model, input):
+    """converge test
+    Args:
+        model: input model
+        input (str): input file
+
+    Returns:
+        score: score of given model
+        output (bytearray): mutated output
+        converged (bool): whether the model converged
+        path (list): concolic pc's
+        model: the input model itself
+    """
     print('[search]: converge: model:')
     print_model(model)
     return __converge(model, input, 0)
@@ -158,6 +213,8 @@ def __converge(model, input, depth):
     return score, output, converged, path, model
 
 def search():
+    """search for an optimal input
+    """
     print('[search]: search')
     global br_model
     input = b''
