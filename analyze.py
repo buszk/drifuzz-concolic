@@ -40,10 +40,7 @@ if args.replay or args.all:
     }
     cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
         "-replay", target,
-        #"-panda", "callstack_instr",
-        #"-panda", "tainted_dma",
-        "-panda", "tainted_mmio",
-        #"-panda", "tainted_instr",
+        "-panda", "tainted_drifuzz",
         "-panda", "tainted_branch",
         "-pandalog", get_pandalog(target)]
     cmd += extra_args
