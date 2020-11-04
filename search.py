@@ -27,22 +27,27 @@ def best(tup1, tup2):
         same (bool): if both sides are the same
 
     """
-    print('[search]: best', 'true', tup1[0], tup1[2], 'false', tup2[0], tup2[2])
-    if tup1[2] and not tup2[2]:
+    print('[search]: best', 'true model:', tup1[0], tup1[2], 'false model', tup2[0], tup2[2])
+    score1, output1, converge1, path1, model1, newbr1 = tup1
+    score2, output2, converge2, path2, model2, newbr2 = tup2
+    if not newbr1 and not newbr2:
+        # Neither has new branches: ignore convergence, return best score
+        return (tup1, False) if (score1 > score2) else (tup2, False)
+    if converge1 and not converge2:
         # Only the first converge
         return tup1, False
-    elif not tup1[2] and tup2[2]:
+    elif not converge1 and converge2:
         # Only the second converge
         return tup2, False
-    elif not tup1[2] and not tup1[2]:
+    elif not converge1 and not converge2:
         # Neither converge
         return tup1, False
-    elif tup1[0] == tup2[0]:
+    elif score1 == score2:
         # Both converge with same scores
         return tup1, True
     else:
         # Both converge with different scores
-        return (tup1, False) if (tup1[0] > tup2[0]) else (tup2, False)
+        return (tup1, False) if (score1 > score2) else (tup2, False)
 
 def file_to_bytes(fname):
     with open(fname, 'rb') as f:
@@ -73,11 +78,13 @@ def get_next_path(model):
         result: branch index to flip
         path: the path of last execution
         br_pc: the flipped branch program counter
+        new_branch: path has a new branch not covered by model
     """
     print('[search]: get_next_path')
     result = -1
     path = []
     br_pc = 0
+    new_branch = False
     with open('/tmp/drifuzz_path_constraints', 'r') as f:
         for line in f:
             if "Count: " not in line:
@@ -92,13 +99,14 @@ def get_next_path(model):
             print(count, hex(pc), condition)
             path.append(pc)
             if pc not in model:
+                new_branch = True
                 continue
             if model[pc] == Cond.BOTH:
                 continue
             if model[pc] != condition and result == -1:
                 result = count
                 br_pc = pc
-    return result, path, br_pc
+    return result, path, br_pc, new_branch
 
 def num_unique_mmio():
     print('[search]: num_unique_mmio')
@@ -157,20 +165,20 @@ def execute(model, input):
         output (bytearray): mutated output
         converged (bool): whether the model converged
         path (list): concolic pc's
+        new_branch: path has a new branch not covered by model
     """
     print('[search]: execute')
-    with open('out/0', 'wb') as f:
-        f.write(input)
+    bytes_to_file('out/0', input)
     run_concolic('ath10k_pci', 'out/0')
-    curr_count, path, br_pc = get_next_path(model)
-    remaining_run = 10
-    # remaining_run = 5
+    curr_count, path, br_pc, new_branch = get_next_path(model)
+    # remaining_run = 10
+    remaining_run = 5
     while remaining_run > 0:
         
         if (curr_count < 0):
             break
         run_concolic('ath10k_pci', f'out/{str(curr_count)}')
-        curr_count, path, br_pc = get_next_path(model)
+        curr_count, path, br_pc, new_branch = get_next_path(model)
 
         # Dec remaining_run only when flipping the testing branch
         for key, _ in model.items():
@@ -180,9 +188,9 @@ def execute(model, input):
             break
     
     if remaining_run == 0:
-        return num_concolic_branches(), file_to_bytes('out/0'), False, path
+        return num_concolic_branches(), file_to_bytes('out/0'), False, path, new_branch
     
-    return num_concolic_branches(), file_to_bytes('out/0'), True, path
+    return num_concolic_branches(), file_to_bytes('out/0'), True, path, new_branch
     
 
 
@@ -198,6 +206,7 @@ def converge(model, input):
         converged (bool): whether the model converged
         path (list): concolic pc's
         model: the input model itself
+        new_branch: path has a new branch not covered by model
     """
     print('[search]: converge: model:')
     print_model(model)
@@ -205,21 +214,21 @@ def converge(model, input):
 
 def __converge(model, input, depth):
     print('[search]: __converge')
-    score, output, converged, path = execute(model, input)
+    score, output, converged, path, new_branch = execute(model, input)
     if (depth == 0):
-        return score, output, converged, path, model
+        return score, output, converged, path, model, new_branch
     for br in path:
         if br in br_model:
             continue
         tup, eq = best(__converge(merge_dict({br: Cond.TRUE}, model), output, depth-1),
                        __converge(merge_dict({br: Cond.FALSE}, model), output, depth-1))
-        score, output, converged, path, model = tup
+        score, output, converged, path, model, new_branch = tup
         if eq:
             model[br] = Cond.BOTH
         
-        return score, output, converged, path, model
+        return score, output, converged, path, model, new_branch
     # All branches are present in model
-    return score, output, converged, path, model
+    return score, output, converged, path, model, new_branch
 
 def search():
     """search for an optimal input
@@ -229,8 +238,7 @@ def search():
     input = b''
     with open(args.input, "rb") as f:
         input = f.read()
-    score, output, converged, path = execute(br_model, input)
-    new_branch = True
+    score, output, converged, path, new_branch = execute(br_model, input)
     if not converged:
         print("Empty model does not converge")
         return
@@ -242,13 +250,15 @@ def search():
             new_branch = True
             tup, eq = best(converge(merge_dict({br: Cond.TRUE}, br_model), output),
                            converge(merge_dict({br: Cond.FALSE}, br_model), output))
-            score, output, converged, path, model = tup
+            score, output, converged, path, model, newbr = tup
             if eq:
                 model[br] = Cond.BOTH
             br_model = model
             print("[search] current model:")
             print_model(br_model)
-    print(br_model)
+
+    bytes_to_file('out/0', output)
+    print_model(br_model)
 
 
 if __name__ == '__main__':
