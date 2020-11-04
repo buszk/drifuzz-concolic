@@ -12,6 +12,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--record', default=False, action="store_true")
 parser.add_argument('--replay', default=False, action="store_true")
+parser.add_argument('--gdbreplay', default=False, action="store_true")
 parser.add_argument('--process', default=False, action="store_true")
 parser.add_argument('--socket', default="", action="store")
 parser.add_argument('--target', default="", action="store")
@@ -44,6 +45,8 @@ if args.replay or args.all:
         "-panda", "tainted_branch",
         "-pandalog", get_pandalog(target)]
     cmd += extra_args
+    if args.gdbreplay:
+        cmd = ["gdb", "-ex", "r", "--args"] + cmd
     print(" ".join(cmd))
     subprocess.check_call(cmd, env=env)
 
