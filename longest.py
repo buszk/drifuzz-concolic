@@ -27,6 +27,8 @@ model = {
     0xffffffffa01329ac: 1, #set
     0xffffffffa0132c57: 1,
     0xffffffffa0132c5a: 1,
+    0xffffffffa012271f: 0, #must
+    0xffffffffa01c12c6: 1, #byte comp
 }
 
 curr_count = -1
