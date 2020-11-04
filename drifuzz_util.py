@@ -156,7 +156,7 @@ class CommandHandler:
         return (ret, idx, )
     
     def handle_dma_buf(self, size):
-        ret, idx = self.get_dma_data(size)
+        ret, idx = self.get_dma_data(size, size)
         print("[%.4f] dma_buf [%x]\n" % (time.time(), size))
         return (ret, idx, )
 
@@ -253,6 +253,8 @@ class GlobalModel():
         """
         Method to load an entire master state from JSON file...
         """
+        if not os.path.exists(global_module_save):
+            return
         with open(global_module_save, \
                         'r') as infile:
             dump = json.load(infile)
