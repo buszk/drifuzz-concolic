@@ -33,7 +33,7 @@ def run_concolic():
 
     time.sleep(.1)
 
-    cmd = ["python3", "./analyze.py",
+    cmd = ["./analyze.py",
             "--record",
             "--replay",
             "--target", args.target,
