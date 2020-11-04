@@ -1,4 +1,5 @@
 #!/usr/bin/env -S python3 -u
+import os
 import argparse
 import subprocess
 from enum import IntEnum
@@ -50,6 +51,10 @@ def file_to_bytes(fname):
 def bytes_to_file(fname, bs):
     with open(fname, 'wb') as f:
         return f.write(bs)
+
+def remove_if_exits(fname):
+    if os.path.exists(fname):
+        os.remove(fname)
 
 def merge_dict(d1, d2):
     d1.update(d2)
@@ -130,6 +135,10 @@ def run_concolic(target, inp):
     """
     print('[search]: run_concolic')
     # shutil.rmtree('out')
+
+    remove_if_exits('/tmp/drifuzz_index')
+    remove_if_exits('/tmp/drifuzz_path_constraints')
+
     print(f'Executing input {inp}')
     with open('concolic.log', 'a+') as f:
         cmd = ['./concolic.py', target, inp, 'out']
