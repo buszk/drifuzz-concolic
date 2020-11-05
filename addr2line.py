@@ -12,7 +12,7 @@ args = parser.parse_args()
 addr = 0
 if len(args.addr) >= 2 and args.addr[0:2] == '0x':
     addr = int(args.addr[2:], 16)
-elif 'f' in addr:
+elif 'f' in args.addr:
     addr = int(args.addr, 16)
 else:
     addr = int(args.addr)
