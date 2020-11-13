@@ -30,7 +30,7 @@ if (len(tree[addr]) == 1):
     module_name = list(tree[addr])[0][2]
     module_base = list(tree[addr])[0][0]
     print(f"module_name: {module_name}")
-    print(f"module_base: {module_base}")
+    print(f"module_base: {hex(module_base)}")
 
     p = subprocess.Popen(['find', linux_build, '-iname', f'{module_name}.ko'], 
                             stdout=subprocess.PIPE)
@@ -43,6 +43,7 @@ if (len(tree[addr]) == 1):
     p = subprocess.Popen(cmd)
     p.wait()
 else:
-    cmd = ['addr2line', '-f', '-e', join(linux_build, 'vmlinux'), '-a', f'0x{hex(addr)}']
+    cmd = ['addr2line', '-f', '-e', join(linux_build, 'vmlinux'), '-a', f'{hex(addr)}']
+    print(' '.join(cmd))
     p = subprocess.Popen(cmd)
     p.wait()
