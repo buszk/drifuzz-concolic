@@ -1,5 +1,6 @@
 #!/usr/bin/env -S python3 -u
 import os
+import sys
 import argparse
 import subprocess
 from enum import IntEnum
@@ -15,6 +16,26 @@ class Cond(IntEnum):
     BOTH = 2 #both
 
 br_model = {} #{br: Cond}
+br_model = {
+    
+    0xffffffffa01c0ebe: 1,
+    0xffffffffa01c1c66: 1,
+    0xffffffffa01c1bfc: 1,
+    0xffffffffa01c12c6: 1,
+    0xffffffffa012271f: 0,
+    0xffffffffa012a24e: 0,
+    0xffffffffa012a7f6: 0,
+    0xffffffffa0132c57: 1,
+    0xffffffffa01329ac: 1,
+    0xffffffffa01bffb6: 0,
+    0xffffffffa01bfec0: 0,
+    0xffffffffa01bd110: 0,
+    0xffffffffa01bd007: 1,
+    0xffffffffa01bd00b: 1,
+    0xffffffffa01bd000: 0,
+    0xffffffffa01b263e: 1,
+
+}
 
 def best(tup1, tup2):
     """ Choose between two converge test result
@@ -64,6 +85,11 @@ def remove_if_exits(fname):
 def merge_dict(d1, d2):
     d1.update(d2)
     return d1
+
+def last_branch_in_model(model):
+    for key, _ in model.items():
+        return key
+    return 0
 
 def print_model(model):
     for key, value in model.items():
@@ -134,6 +160,25 @@ def num_concolic_branches():
                 count += 1
     return count
 
+def get_score():
+    # 1000 * unique pc - total pc
+    print('[search]: get_score')
+    count = 0
+    pcs = []
+    with open('/tmp/drifuzz_path_constraints', 'r') as f:
+        for line in f:
+            if "Count: " in line:
+                sp = line.split(' ')
+                assert(sp[0] == 'Count:')
+                assert(sp[2] == 'Condition:')
+                assert(sp[4] == 'PC:')
+                pc = int(sp[5], 16)
+                count += 1
+                if pc not in pcs:
+                    pcs.append(pc)
+    return len(pcs) * 1000 - count
+
+
 
 def run_concolic(target, inp):
     """Run concolic script
@@ -169,8 +214,16 @@ def execute(model, input):
     """
     print('[search]: execute')
     bytes_to_file('out/0', input)
+    remaining_redo = 2
+    test_branch = last_branch_in_model(model)
     run_concolic('ath10k_pci', 'out/0')
     curr_count, path, br_pc, new_branch = get_next_path(model)
+    if test_branch != 0:
+        while remaining_redo > 0 and not test_branch in path:
+            print('[search]: repeat because new edge not seen')
+            run_concolic('ath10k_pci', 'out/0')
+            curr_count, path, br_pc, new_branch = get_next_path(model)
+            remaining_redo -= 1
     # remaining_run = 10
     remaining_run = 5
     while remaining_run > 0:
@@ -180,17 +233,24 @@ def execute(model, input):
         run_concolic('ath10k_pci', f'out/{str(curr_count)}')
         curr_count, path, br_pc, new_branch = get_next_path(model)
 
+        if test_branch != 0:
+            remaining_redo = 2
+            while remaining_redo > 0 and not test_branch in path:
+                print('[search]: repeat because new edge not seen')
+                remaining_redo -= 1
+                run_concolic('ath10k_pci', 'out/0')
+                curr_count, path, br_pc, new_branch = get_next_path(model)
+
+
         # Dec remaining_run only when flipping the testing branch
-        for key, _ in model.items():
-            print(f"br_pc {hex(br_pc)}, {hex(key)}")
-            if key == br_pc:
-                remaining_run -= 1
-            break
+        print(f"br_pc {hex(br_pc)}, last_branch_in_model {hex(test_branch)}")
+        if test_branch == br_pc:
+            remaining_run -= 1
     
     if remaining_run == 0:
-        return num_concolic_branches(), file_to_bytes('out/0'), False, path, new_branch
+        return get_score(), file_to_bytes('out/0'), False, path, new_branch
     
-    return num_concolic_branches(), file_to_bytes('out/0'), True, path, new_branch
+    return get_score(), file_to_bytes('out/0'), True, path, new_branch
     
 
 
@@ -256,9 +316,10 @@ def search():
             br_model = model
             print("[search] current model:")
             print_model(br_model)
+            break
 
     bytes_to_file('out/0', output)
-    print_model(br_model)
+    # print_model(br_model)
 
 
 if __name__ == '__main__':
