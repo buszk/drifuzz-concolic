@@ -2,14 +2,19 @@
 import os
 import pty
 import subprocess
-from drifuzz_util import *
 import argparse
 from os.path import join, exists
+from copy import deepcopy
+from common import *
+from drifuzz_util import *
+sys.path.append(join(PANDA_SRC, "panda/scripts"))
+from run_guest import create_recording
 
 parser = argparse.ArgumentParser()
 parser.add_argument('target', type=str)
 parser.add_argument('seed', type=str)
 parser.add_argument('out', type=str)
+parser.add_argument('--gdbreplay', default=False, action="store_true")
 args = parser.parse_args()
 
 if not exists(args.out):
@@ -32,15 +37,33 @@ def run_concolic():
     socket_thread.start()
 
     time.sleep(.1)
+    # Record
+    target = args.target
+    extra_args = get_extra_args(target, socket=qemu_socket)
+    create_recording(qemu_path, qcow, get_snapshot(target), \
+            get_cmd(target), copy_dir, get_recording_path(target), \
+            expect_prompt, cdrom, extra_args=extra_args)
 
-    cmd = ["./analyze.py",
-            "--record",
-            "--replay",
-            "--target", args.target,
-            "--socket", qemu_socket]
-    
-    p = subprocess.Popen(cmd, env=os.environ)
-    p.wait()
+    # Replay
+    env={
+        "LD_PRELOAD":"/home/zekun/bpf/install/lib/libz3.so",
+        **os.environ
+    }
+    cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
+        "-replay", f"{target}_reduced",
+        "-panda", "tainted_drifuzz",
+        "-panda", "tainted_branch",
+        #"-d", "in_asm",
+        #"-d", "in_asm,op,llvm_ir",
+        #"-dfilter", "0xffffffffa0128000..0xffffffffffffffff",
+        "-pandalog", get_pandalog(target)]
+    cmd += extra_args
+
+    if args.gdbreplay:
+        cmd = ["gdb", "-ex", "r", "--args"] + cmd
+    print(" ".join(cmd))
+    subprocess.check_call(cmd, env=env)
+
     global_module.save_data()
 
     socket_thread.stop()
@@ -61,7 +84,7 @@ def parse_concolic():
             size = int(entries[2].split(' ')[1])
             for i in range(size):
                 input2seed[input_index+i] = seed_index+i
-    copy = orig
+    copy = deepcopy(orig)
     with open(join(args.out, '0'), 'wb') as o:
         o.write(orig)
 
@@ -75,7 +98,7 @@ def parse_concolic():
                 # reset and export
                 with open(join(args.out, str(out_index)), 'wb') as o:
                     o.write(copy)
-                copy = orig
+                copy = deepcopy(orig)
             if 'Count:' in line:
                 splited = line.split(' ')
                 out_index = int(splited[1])
