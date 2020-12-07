@@ -4,28 +4,27 @@ from common import *
 import subprocess
 import argparse
 from os.path import isfile
+from common import get_raw_img, get_qcow
 
 import time
 from drifuzz_util import GlobalModel, CommandHandler, SocketThread, qemu_socket
 
 parser = argparse.ArgumentParser()
 parser.add_argument('target', type=str)
-parser.add_argument('--raw', type=str)
-parser.add_argument('qcow', type=str)
 args = parser.parse_args()
 
-if not isfile(args.qcow) and not isfile(args.raw):
-    print(f'{args.qcow} does not exist, must provide raw img with --raw')
-    import sys
-    sys.exit(1)
+# Remove qcow if exists
+if isfile(get_qcow(args.target)):
+    os.remove(get_qcow(args.target))
 
-if isfile(args.raw):
-    qemu_img_path = f"{PANDA_BUILD}/qemu-img"
+# Create qcow
+qemu_img_path = f"{PANDA_BUILD}/qemu-img"
 
-    cmd = [qemu_img_path]
-    cmd += ['convert', '-f', 'raw', '-O', 'qcow2', args.raw, args.qcow]
-    subprocess.check_call(cmd)
+cmd = [qemu_img_path]
+cmd += ['convert', '-f', 'raw', '-O', 'qcow2', get_raw_img(), get_qcow(args.target)]
+subprocess.check_call(cmd)
 
+# Setup drifuzz model
 global_module = GlobalModel()
 global_module.load_data()
 command_handler = CommandHandler(global_module)
@@ -33,9 +32,10 @@ socket_thread = SocketThread(command_handler, qemu_socket)
 
 socket_thread.start()
 
+# Start qemu to obtain snapshot
 time.sleep(.1)
 cmd = [qemu_path]
-cmd += [args.qcow]
+cmd += [get_qcow(args.target)]
 cmd += get_extra_args(args.target,socket=qemu_socket)
 
 print(" ".join(cmd))

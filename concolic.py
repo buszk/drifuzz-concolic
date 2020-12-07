@@ -48,7 +48,7 @@ def run_concolic():
     # Record
     target = args.target
     extra_args = get_extra_args(target, socket=qemu_socket)
-    create_recording(qemu_path, qcow, get_snapshot(target), \
+    create_recording(qemu_path, get_qcow(target), get_snapshot(target), \
             get_cmd(target), copy_dir, get_recording_path(target), \
             expect_prompt, cdrom, extra_args=extra_args)
     # Trim

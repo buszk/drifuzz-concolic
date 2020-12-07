@@ -30,7 +30,7 @@ if not (args.record or args.replay or args.process or args.all):
     sys.exit(1)
 
 if args.record or args.all:
-    create_recording(qemu_path, qcow, get_snapshot(target), \
+    create_recording(qemu_path, get_qcow(target), get_snapshot(target), \
             get_cmd(target), copy_dir, get_recording_path(target), \
             expect_prompt, cdrom, extra_args=extra_args)
 

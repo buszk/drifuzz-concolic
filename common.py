@@ -9,14 +9,19 @@ drifuzz = abspath(join(BASE_DIR, "..", "Drifuzz"))
 PANDA_SRC = abspath(join(BASE_DIR, "..", "panda"))
 PANDA_BUILD = join(drifuzz, "panda-build")
 qemu_path = join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64")
-qcow = join(BASE_DIR, "test.qcow2")
 
 expect_prompt = "root@syzkaller:~#"
 cdrom = "ide1-cd0"
 copy_dir = join(BASE_DIR, "copy-dir")
 
+def get_raw_img():
+    return join(drifuzz, 'image', 'buster.img')
+
 def get_snapshot(target):
     return target
+
+def get_qcow(target):
+    return f"{target}.qcow2"
 
 def get_cmd(target):
     return [join(copy_dir, "prog-init.sh"), target]
