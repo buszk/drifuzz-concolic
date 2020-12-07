@@ -22,6 +22,7 @@ args = parser.parse_args()
 target = "e1000"
 if args.target != "":
     target = args.target
+setup_work_dir(target=target)
 
 extra_args = get_extra_args(target, socket=args.socket)
 

@@ -6,6 +6,7 @@ import subprocess
 from enum import IntEnum
 from copy import deepcopy
 from collections import namedtuple
+from common import get_out_dir
 
 parser = argparse.ArgumentParser()
 parser.add_argument("target")
@@ -21,11 +22,12 @@ BranchT = namedtuple("BranchT", "index pc cond hash vars file")
 ScoreT = namedtuple("ScoreT", "ummio nmmio")
 
 br_model = {} #{br: Cond}
-br_model = {
-    
-    0xffffffffa0036a60: 1,
-    0xffffffffa0037b1b: 1,
-}
+
+def get_out_file(n):
+    return os.path.join(get_out_dir(args.target), str(n))
+
+def get_concolic_log():
+    return os.path.join('work', args.target, 'concolic.log')
 
 def comp_score(score1, score2):
     s1 = score1.ummio *1000 - score1.nmmio
@@ -168,7 +170,7 @@ def get_next_path(model):
             h = int(sp[7], 16)
             v = int(sp[9], 16)
             print(count, hex(pc), condition)
-            br = BranchT(count, pc, condition, h, v, file_to_bytes(f"out/{count}"))
+            br = BranchT(count, pc, condition, h, v, file_to_bytes(get_out_file(count)))
             path.append(br)
             if pc not in model:
                 new_branch = True
@@ -245,8 +247,8 @@ def run_concolic(target, inp):
     remove_if_exits('/tmp/drifuzz_path_constraints')
 
     print(f'Executing input {inp}')
-    with open('concolic.log', 'a+') as f:
-        cmd = ['./concolic.py', target, inp, 'out']
+    with open(get_concolic_log(), 'a+') as f:
+        cmd = ['./concolic.py', target, inp]
         p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=f, stderr=f)
         p.wait()
         assert(p.returncode == 0)
@@ -265,19 +267,19 @@ def execute(model, input):
         new_branch: path has a new branch not covered by model
     """
     print('[search]: execute')
-    bytes_to_file('out/0', input)
+    bytes_to_file(get_out_file(0), input)
     remaining_redo = 2
     test_branch = last_branch_in_model(model)
-    run_concolic(args.target, 'out/0')
+    run_concolic(args.target, get_out_file(0))
     curr_count, path, br_pc, new_branch = get_next_path(model)
     if test_branch != 0:
         while remaining_redo > 0 and not pc_in_path(test_branch, path):
             print('[search]: repeat because new edge not seen')
-            run_concolic(args.target, 'out/0')
+            run_concolic(args.target, get_out_file(0))
             curr_count, path, br_pc, new_branch = get_next_path(model)
             remaining_redo -= 1
         if remaining_redo == 0:
-            return get_score(model), file_to_bytes('out/0'), False, path, new_branch
+            return get_score(model), file_to_bytes(get_out_file(0)), False, path, new_branch
     # remaining_run = 10
     remaining_run = 5
     remaining_others = 10
@@ -285,7 +287,7 @@ def execute(model, input):
         
         if (curr_count < 0):
             break
-        run_concolic(args.target, f'out/{str(curr_count)}')
+        run_concolic(args.target, get_out_file(curr_count))
         curr_count, path, br_pc, new_branch = get_next_path(model)
 
         if test_branch != 0:
@@ -293,10 +295,10 @@ def execute(model, input):
             while remaining_redo > 0 and not pc_in_path(test_branch, path):
                 print('[search]: repeat because new edge not seen')
                 remaining_redo -= 1
-                run_concolic(args.target, 'out/0')
+                run_concolic(args.target, get_out_file(0))
                 curr_count, path, br_pc, new_branch = get_next_path(model)
             if remaining_redo == 0:
-                return get_score(model), file_to_bytes('out/0'), False, path, new_branch
+                return get_score(model), file_to_bytes(get_out_file(0)), False, path, new_branch
 
         # Dec remaining_run only when flipping the testing branch
         print(f"br_pc {hex(br_pc)}, last_branch_in_model {hex(test_branch)}")
@@ -307,9 +309,9 @@ def execute(model, input):
             remaining_others -= 1
     
     if remaining_run == 0:
-        return get_score(model), file_to_bytes('out/0'), False, path, new_branch
+        return get_score(model), file_to_bytes(get_out_file(0)), False, path, new_branch
     
-    return get_score(model), file_to_bytes('out/0'), True, path, new_branch
+    return get_score(model), file_to_bytes(get_out_file(0)), True, path, new_branch
 
 
 def converge(model, input):
@@ -396,11 +398,13 @@ def search():
         print("[search] current model:")
         print_model(br_model)
 
-    bytes_to_file('out/0', output)
+    bytes_to_file(get_out_file(0), output)
     # print_model(br_model)
 
 
 if __name__ == '__main__':
+    if os.path.exists(get_concolic_log()):
+        os.remove(get_concolic_log())
     try:
         search()
     except KeyboardInterrupt:

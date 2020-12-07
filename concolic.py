@@ -13,12 +13,12 @@ from run_guest import create_recording
 parser = argparse.ArgumentParser()
 parser.add_argument('target', type=str)
 parser.add_argument('seed', type=str)
-parser.add_argument('out', type=str)
 parser.add_argument('--gdbreplay', default=False, action="store_true")
 args = parser.parse_args()
 
-if not exists(args.out):
-    os.mkdir(args.out)
+outdir=get_out_dir(args.target)
+if not exists(outdir):
+    os.mkdir(outdir)
 
 def bytearray_set(bs, ind, val):
     if ind < len(bs):
@@ -38,7 +38,7 @@ def get_trim_start():
 
 def run_concolic():
     global_module = GlobalModel()
-    global_module.load_data()
+    global_module.load_data(args.target)
     command_handler = CommandHandler(global_module, seed=args.seed)
     socket_thread = SocketThread(command_handler, qemu_socket)
 
@@ -53,8 +53,8 @@ def run_concolic():
             expect_prompt, cdrom, extra_args=extra_args)
     # Trim
     cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
-        "-replay", target,
-        "-panda", f"scissors:name={target}_reduced,start={get_trim_start()-1000}",
+        "-replay", get_recording_path(target),
+        "-panda", f"scissors:name={get_reduced_recording_path(target)},start={get_trim_start()-1000}",
         "-pandalog", get_pandalog(target)]
     cmd += extra_args
     subprocess.check_call(cmd)
@@ -65,7 +65,7 @@ def run_concolic():
         **os.environ
     }
     cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
-        "-replay", f"{target}_reduced",
+        "-replay", get_reduced_recording_path(target),
         "-panda", "tainted_drifuzz",
         "-panda", "tainted_branch",
         #"-d", "in_asm",
@@ -79,7 +79,7 @@ def run_concolic():
     print(" ".join(cmd))
     subprocess.check_call(cmd, env=env)
 
-    global_module.save_data()
+    global_module.save_data(args.target)
 
     socket_thread.stop()
 
@@ -100,7 +100,7 @@ def parse_concolic():
             for i in range(size):
                 input2seed[input_index+i] = seed_index+i
     copy = deepcopy(orig)
-    with open(join(args.out, '0'), 'wb') as o:
+    with open(join(outdir, '0'), 'wb') as o:
         o.write(orig)
 
     out_index = -1
@@ -111,7 +111,7 @@ def parse_concolic():
             line = line[:-1]
             if '= Z3 Path Solver End =' in line:
                 # reset and export
-                with open(join(args.out, str(out_index)), 'wb') as o:
+                with open(join(outdir, str(out_index)), 'wb') as o:
                     o.write(copy)
                 copy = deepcopy(orig)
             if 'Count:' in line:
@@ -137,6 +137,7 @@ def parse_concolic():
 
 
 def main():
+    setup_work_dir(target=args.target)
     run_concolic()
     parse_concolic()
 

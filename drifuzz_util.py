@@ -5,9 +5,9 @@ import socket
 import struct
 import threading
 from cmdparser import opts, Command
+from common import get_global_module
 
 qemu_socket = '/tmp/zekun_drifuzz_socket_0'
-global_module_save = "global_module.sav"
 class SocketThread (threading.Thread):
 
     def __init__(self, model, addrses):
@@ -237,7 +237,7 @@ class GlobalModel():
 
 
 
-    def save_data(self):
+    def save_data(self, target):
         dump = {}
         args_to_save = ['next_free_idx', 'read_idx', 'dma_idx']
         for key, value in self.__dict__.items():
@@ -246,17 +246,17 @@ class GlobalModel():
             elif key == 'read_idx' or key == 'dma_idx':
                 dump[key] = [{'key': k, 'value': v} for k, v in value.items()]
 
-        with open(global_module_save, \
+        with open(get_global_module(target), \
                         'w') as outfile:
             json.dump(dump, outfile, default=json_dumper)
 
-    def load_data(self):
+    def load_data(self, target):
         """
         Method to load an entire master state from JSON file...
         """
-        if not os.path.exists(global_module_save):
+        if not os.path.exists(get_global_module(target)):
             return
-        with open(global_module_save, \
+        with open(get_global_module(target), \
                         'r') as infile:
             dump = json.load(infile)
             for key, value in dump.items():

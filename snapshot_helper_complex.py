@@ -13,6 +13,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('target', type=str)
 args = parser.parse_args()
 
+setup_work_dir(target=args.target)
+
 # Remove qcow if exists
 if isfile(get_qcow(args.target)):
     os.remove(get_qcow(args.target))
