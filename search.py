@@ -73,8 +73,9 @@ def remove_if_exits(fname):
         os.remove(fname)
 
 def merge_dict(d1, d2):
-    d1.update(d2)
-    return d1
+    copy = deepcopy(d1)
+    copy.update(d2)
+    return copy
 
 def last_branch_in_model(model):
     for key, _ in model.items():
