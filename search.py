@@ -21,6 +21,11 @@ BranchT = namedtuple("BranchT", "index pc cond hash vars file")
 ScoreT = namedtuple("ScoreT", "ummio nmmio")
 
 br_model = {} #{br: Cond}
+br_model = {
+    
+    0xffffffffa0036a60: 1,
+    0xffffffffa0037b1b: 1,
+}
 
 def comp_score(score1, score2):
     s1 = score1.ummio *1000 - score1.nmmio
@@ -305,7 +310,6 @@ def execute(model, input):
         return get_score(model), file_to_bytes('out/0'), False, path, new_branch
     
     return get_score(model), file_to_bytes('out/0'), True, path, new_branch
-    
 
 
 def converge(model, input):
@@ -323,26 +327,30 @@ def converge(model, input):
         new_branch: path has a new branch not covered by model
     """
     print('[search]: converge: model:')
-    print_model(model)
-    return __converge(model, input, 0)
+    return __converge(model, input, 1)
 
 def __converge(model, input, depth):
     print('[search]: __converge')
+    print_model(model)
     score, output, converged, path, new_branch = execute(model, input)
+    switch_pc, outputs = next_switch(model, path)
     if (depth == 0):
         return score, output, converged, path, model, new_branch
-    for br in path:
-        if br.pc in br_model:
-            continue
-        tup, eq = best(__converge(merge_dict({br.pc: Cond.TRUE}, model), output, depth-1),
-                       __converge(merge_dict({br.pc: Cond.FALSE}, model), output, depth-1))
+    br = next_branch_pc(model, path)
+    if br == 0:
+        return score, output, converged, path, model, new_branch
+
+    if switch_pc:
+        tup = converge_switch(merge_dict({switch_pc: Cond.BOTH}, br_model), outputs)
+        score, output, converged, path, model, new_branch = tup
+    else:
+        tup, eq = best(__converge(merge_dict({br: Cond.TRUE}, model), output, depth-1),
+                        __converge(merge_dict({br: Cond.FALSE}, model), output, depth-1))
         score, output, converged, path, model, new_branch = tup
         if eq:
-            model[br.pc] = Cond.BOTH
-        
-        return score, output, converged, path, model, new_branch
-    # All branches are present in model
+            model[br] = Cond.BOTH
     return score, output, converged, path, model, new_branch
+    
 
 def converge_switch(model, outputs):
     print('[search]: converge_switch')
@@ -352,6 +360,21 @@ def converge_switch(model, outputs):
         tup = __converge(model, f, 0)
         tup0, conv = best(tup0, tup)
     return tup0
+
+def update_one_branch(model, new_model):
+    print('[search]: update_one_branch')
+    print('model:')
+    print_model(model)
+    print('new_model:')
+    print_model(new_model)
+
+    last = 0
+    for k in new_model.keys():
+        if not k in model:
+            last = k
+        else:
+            break
+    model[last] = new_model[last]
     
 
 def search():
@@ -367,24 +390,9 @@ def search():
         print("Empty model does not converge")
         return
     while new_branch:
-        new_branch = False
-        switch_pc, outputs = next_switch(br_model, path)
-        first_br = next_branch_pc(br_model, path)
-        if switch_pc == 0 and first_br == 0:
-            break
-        new_branch = True
-
-        # A special switch case
-        if switch_pc:
-            tup = converge_switch(merge_dict({switch_pc: Cond.BOTH}, br_model), outputs)
-            score, output, converged, path, model, newbr = tup
-        else:
-            tup, eq = best(converge(merge_dict({first_br: Cond.TRUE}, br_model), output),
-                            converge(merge_dict({first_br: Cond.FALSE}, br_model), output))
-            score, output, converged, path, model, newbr = tup
-            if eq:
-                model[first_br] = Cond.BOTH
-        br_model = model
+        tup = converge(br_model, output)
+        score, output, converged, path, model, new_branch = tup
+        update_one_branch(br_model, model)
         print("[search] current model:")
         print_model(br_model)
 
