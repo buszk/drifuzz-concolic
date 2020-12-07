@@ -147,17 +147,18 @@ class CommandHandler:
 
         
     def handle_write(self, region, addr, size, val):
-        print("[%.4f] write #%d[%lx][%d] =  %x\n" % (time.time(), region, addr, size, val))
+        # print("[%.4f] write #%d[%lx][%d] =  %x\n" % (time.time(), region, addr, size, val))
+        pass
 
     def handle_read(self, region, addr, size):
         k = (region, addr, size)
         ret, idx = self.get_read_data(k, size)
-        print("[%.4f] read  #%d[%lx][%d] as %x\n" % (time.time(), region, addr, size, ret))
+        # print("[%.4f] read  #%d[%lx][%d] as %x\n" % (time.time(), region, addr, size, ret))
         return (ret, idx, )
     
     def handle_dma_buf(self, size):
         ret, idx = self.get_dma_data(size, size)
-        print("[%.4f] dma_buf [%x]\n" % (time.time(), size))
+        # print("[%.4f] dma_buf [%x]\n" % (time.time(), size))
         return (ret, idx, )
 
     def handle_reset(self):
