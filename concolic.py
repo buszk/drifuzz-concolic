@@ -27,6 +27,14 @@ def bytearray_set(bs, ind, val):
         bs.extend(b'\x00'*(ind-len(bs)))
         bs.append(val)
 
+def get_trim_start():
+    with open('/tmp/drifuzz_index', 'r') as f:
+        for line in f:
+            entries = line.split(', ')
+            assert(entries[5].split(' ')[0] == 'rr_count:')
+            rr_count = int(entries[5].split(' ')[1], 16)
+            return rr_count
+    return 0
 
 def run_concolic():
     global_module = GlobalModel()
@@ -43,6 +51,13 @@ def run_concolic():
     create_recording(qemu_path, qcow, get_snapshot(target), \
             get_cmd(target), copy_dir, get_recording_path(target), \
             expect_prompt, cdrom, extra_args=extra_args)
+    # Trim
+    cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
+        "-replay", target,
+        "-panda", f"scissors:name={target}_reduced,start={get_trim_start()-1000}",
+        "-pandalog", get_pandalog(target)]
+    cmd += extra_args
+    subprocess.check_call(cmd)
 
     # Replay
     env={
