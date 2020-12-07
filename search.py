@@ -8,6 +8,7 @@ from copy import deepcopy
 from collections import namedtuple
 
 parser = argparse.ArgumentParser()
+parser.add_argument("target")
 parser.add_argument("input")
 args = parser.parse_args()
 
@@ -261,12 +262,12 @@ def execute(model, input):
     bytes_to_file('out/0', input)
     remaining_redo = 2
     test_branch = last_branch_in_model(model)
-    run_concolic('ath10k_pci', 'out/0')
+    run_concolic(args.target, 'out/0')
     curr_count, path, br_pc, new_branch = get_next_path(model)
     if test_branch != 0:
         while remaining_redo > 0 and not pc_in_path(test_branch, path):
             print('[search]: repeat because new edge not seen')
-            run_concolic('ath10k_pci', 'out/0')
+            run_concolic(args.target, 'out/0')
             curr_count, path, br_pc, new_branch = get_next_path(model)
             remaining_redo -= 1
         if remaining_redo == 0:
@@ -278,7 +279,7 @@ def execute(model, input):
         
         if (curr_count < 0):
             break
-        run_concolic('ath10k_pci', f'out/{str(curr_count)}')
+        run_concolic(args.target, f'out/{str(curr_count)}')
         curr_count, path, br_pc, new_branch = get_next_path(model)
 
         if test_branch != 0:
@@ -286,7 +287,7 @@ def execute(model, input):
             while remaining_redo > 0 and not pc_in_path(test_branch, path):
                 print('[search]: repeat because new edge not seen')
                 remaining_redo -= 1
-                run_concolic('ath10k_pci', 'out/0')
+                run_concolic(args.target, 'out/0')
                 curr_count, path, br_pc, new_branch = get_next_path(model)
             if remaining_redo == 0:
                 return get_score(model), file_to_bytes('out/0'), False, path, new_branch
