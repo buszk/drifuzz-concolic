@@ -16,6 +16,12 @@ copy_dir = join(BASE_DIR, "copy-dir")
 work = "work"
 out = "out"
 
+def get_drifuzz_index(target):
+    return join(work, target, "drifuzz_index")
+
+def get_drifuzz_path_constraints(target):
+    return join(work, target, "drifuzz_path_constraints")
+
 def get_global_module(target):
     return join(work, target, f"{target}.sav")
 
@@ -68,6 +74,7 @@ def get_extra_args(target, socket='', prog=''):
         drifuzz_dev_arg += f',socket={socket}'
     if prog != '':
         drifuzz_dev_arg += f',prog={prog}'
+    drifuzz_dev_arg += f',tmpdir=work/{target}'
     extra_args += ['-device', drifuzz_dev_arg]
 
     extra_args += ['-net', 'user']

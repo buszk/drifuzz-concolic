@@ -28,7 +28,7 @@ def bytearray_set(bs, ind, val):
         bs.append(val)
 
 def get_trim_start():
-    with open('/tmp/drifuzz_index', 'r') as f:
+    with open(get_drifuzz_index(args.target), 'r') as f:
         for line in f:
             entries = line.split(', ')
             assert(entries[5].split(' ')[0] == 'rr_count:')
@@ -88,7 +88,7 @@ def parse_concolic():
     orig:bytearray
     with open(args.seed, 'rb') as f:
         orig = bytearray(f.read())
-    with open('/tmp/drifuzz_index', 'r') as f:
+    with open(get_drifuzz_index(args.target), 'r') as f:
         for line in f:
             entries = line.split(', ')
             assert(entries[0].split(' ')[0] == 'input_index:')
@@ -105,7 +105,7 @@ def parse_concolic():
 
     out_index = -1
     warned = False
-    with open('/tmp/drifuzz_path_constraints', 'r') as f:
+    with open(get_drifuzz_path_constraints(args.target), 'r') as f:
         for line in f:
             assert(line[-1] == '\n')
             line = line[:-1]

@@ -6,7 +6,7 @@ import subprocess
 from enum import IntEnum
 from copy import deepcopy
 from collections import namedtuple
-from common import get_out_dir
+from common import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("target")
@@ -154,7 +154,7 @@ def get_next_path(model):
     path = []
     br_pc = 0
     new_branch = False
-    with open('/tmp/drifuzz_path_constraints', 'r') as f:
+    with open(get_drifuzz_path_constraints(args.target), 'r') as f:
         for line in f:
             if "Count: " not in line:
                 continue
@@ -185,7 +185,7 @@ def get_next_path(model):
 def num_unique_mmio():
     print('[search]: num_unique_mmio')
     s = set()
-    with open('/tmp/drifuzz_index', 'r') as f:
+    with open(get_drifuzz_index(args.target), 'r') as f:
         for line in f:
             entries = line.split(', ')
             # assert(entries[0].split(' ')[0] == 'input_index:')
@@ -202,7 +202,7 @@ def num_unique_mmio():
 def num_concolic_branches():
     print('[search]: num_concolic_branches')
     count = 0
-    with open('/tmp/drifuzz_path_constraints', 'r') as f:
+    with open(get_drifuzz_path_constraints(args.target), 'r') as f:
         for line in f:
             if "Count: " in line:
                 count += 1
@@ -215,7 +215,7 @@ def get_score(model):
     pcs = []
     last_pc = last_branch_in_model(model)
     after = False
-    with open('/tmp/drifuzz_path_constraints', 'r') as f:
+    with open(get_drifuzz_path_constraints(args.target), 'r') as f:
         for line in f:
             if "Count: " in line:
                 sp = line.split(' ')
@@ -243,8 +243,8 @@ def run_concolic(target, inp):
     print('[search]: run_concolic')
     # shutil.rmtree('out')
 
-    remove_if_exits('/tmp/drifuzz_index')
-    remove_if_exits('/tmp/drifuzz_path_constraints')
+    remove_if_exits(get_drifuzz_index(args.target))
+    remove_if_exits(get_drifuzz_path_constraints(args.target))
 
     print(f'Executing input {inp}')
     with open(get_concolic_log(), 'a+') as f:

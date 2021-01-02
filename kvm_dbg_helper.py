@@ -22,7 +22,7 @@ time.sleep(.1)
 cmd = [qemu_path]
 cmd += get_extra_args(args.target, socket=qemu_socket, prog='init')
 cmd += ['-enable-kvm']
-cmd += ['-hda', f'{drifuzz}/image/buster.img']
+cmd += ['-hda', f'{DRIFUZZ}/image/buster.img']
 cmd += ['-snapshot']
 
 p = subprocess.Popen(cmd)
