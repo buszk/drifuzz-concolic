@@ -156,30 +156,38 @@ def get_next_path(model):
     new_branch = False
     with open(get_drifuzz_path_constraints(args.target), 'r') as f:
         for line in f:
-            if "Count: " not in line:
-                continue
-            sp = line.split(' ')
-            assert(sp[0] == 'Count:')
-            assert(sp[2] == 'Condition:')
-            assert(sp[4] == 'PC:')
-            assert(sp[6] == 'Hash:')
-            assert(sp[8] == 'Vars:')
-            count = int(sp[1])
-            condition = int(sp[3])
-            pc = int(sp[5], 16)
-            h = int(sp[7], 16)
-            v = int(sp[9], 16)
-            print(count, hex(pc), condition)
-            br = BranchT(count, pc, condition, h, v, file_to_bytes(get_out_file(count)))
-            path.append(br)
-            if pc not in model:
-                new_branch = True
-                continue
-            if model[pc] == Cond.BOTH:
-                continue
-            if model[pc] != condition and result == -1:
-                result = count
-                br_pc = pc
+            toadd = False
+            count = 0
+            condition = 0
+            pc = 0
+            h = 0
+            v = 0
+            if "Count: " in line:
+                sp = line.split(' ')
+                assert(sp[0] == 'Count:')
+                assert(sp[2] == 'Condition:')
+                assert(sp[4] == 'PC:')
+                assert(sp[6] == 'Hash:')
+                assert(sp[8] == 'Vars:')
+                count = int(sp[1])
+                condition = int(sp[3])
+                pc = int(sp[5], 16)
+                h = int(sp[7], 16)
+                v = int(sp[9], 16)
+                toadd = True
+            elif toadd and "Inverted" in line:
+                toadd = False
+                print(count, hex(pc), condition)
+                br = BranchT(count, pc, condition, h, v, file_to_bytes(get_out_file(count)))
+                path.append(br)
+                if pc not in model:
+                    new_branch = True
+                    continue
+                if model[pc] == Cond.BOTH:
+                    continue
+                if model[pc] != condition and result == -1:
+                    result = count
+                    br_pc = pc
     return result, path, br_pc, new_branch
 
 def num_unique_mmio():
@@ -199,12 +207,22 @@ def num_unique_mmio():
             s.add(address)
     return len(s)
 
+
 def num_concolic_branches():
+    """Number of flippable branch
+
+    Returns:
+        n: Number of flippable branch
+    """
     print('[search]: num_concolic_branches')
     count = 0
     with open(get_drifuzz_path_constraints(args.target), 'r') as f:
         for line in f:
+            toadd = False
             if "Count: " in line:
+                toadd = True
+            elif toadd and "Inverted" in line:
+                toadd = False
                 count += 1
     return count
 
