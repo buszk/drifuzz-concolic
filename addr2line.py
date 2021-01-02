@@ -3,11 +3,29 @@ import sys
 import argparse
 import subprocess
 import intervaltree
-from os.path import expanduser,join
+from os.path import expanduser,join,isfile
 
 parser = argparse.ArgumentParser()
+parser.add_argument('target')
 parser.add_argument('addr', type=str)
 args = parser.parse_args()
+
+addrs_config = {
+    "ath10k_pci": {
+        "ath10k_pci": [0xffffffffa01b0000, 126976],
+        "ath10k_core": [0xffffffffa0018000, 1642496],
+        "ath": [0xffffffffa0000000, 90112],
+    },
+    "ath9k": {
+        "ath9k": [0xffffffffa0128000, 352256],
+        "ath9k_common": [0xffffffffa0118000, 32768],
+        "ath9k_hw": [0xffffffffa0018000, 1024000],
+        "ath": [0xffffffffa0000000, 90112],
+    },
+    "iwlwifi": {
+        "iwlwifi": [0xffffffffa0000000, 798720],
+    },
+}
 
 addr = 0
 if len(args.addr) >= 2 and args.addr[0:2] == '0x':
@@ -18,10 +36,8 @@ else:
     addr = int(args.addr)
 
 tree = intervaltree.IntervalTree()
-tree.addi(0xffffffffa01b0000, 0xffffffffa01b0000 + 126976, "ath10k_pci")
-tree.addi(0xffffffffa0018000, 0xffffffffa0018000 + 1642496, "ath10k_core")
-tree.addi(0xffffffffa0000000, 0xffffffffa0000000 + 90112, "ath")
-
+for mod, addrs in addrs_config[args.target].items():
+    tree.addi(addrs[0], addrs[0] + addrs[1], mod)
 
 home = expanduser("~")
 linux_build = join(home, "Workspace", "git", "Drifuzz", "linux-module-build")
