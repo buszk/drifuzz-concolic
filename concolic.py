@@ -14,6 +14,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('target', type=str)
 parser.add_argument('seed', type=str)
 parser.add_argument('--gdbreplay', default=False, action="store_true")
+parser.add_argument('--ones', nargs='+', type=str, default=[])
+parser.add_argument('--zeros', nargs='+', type=str, default=[])
 args = parser.parse_args()
 
 outdir=get_out_dir(args.target)
@@ -48,6 +50,17 @@ def run_concolic():
     # Record
     target = args.target
     extra_args = get_extra_args(target, socket=qemu_socket)
+    
+    jcc_mod_str = 'jcc_mod:'
+    for e in args.zeros:
+        jcc_mod_str += f"0x{e}=0,"
+    for e in args.ones:
+        jcc_mod_str += f"0x{e}=1,"
+    if jcc_mod_str != 'jcc_mod:':
+        jcc_mod_str = jcc_mod_str[:-1]
+        extra_args += ['-panda', jcc_mod_str]
+    print(jcc_mod_str)
+
     create_recording(qemu_path, get_qcow(target), get_snapshot(target), \
             get_cmd(target), copy_dir, get_recording_path(target), \
             expect_prompt, cdrom, extra_args=extra_args)
