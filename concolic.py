@@ -1,11 +1,11 @@
 #!/usr/bin/env -S python3 -u
 import os
-import pty
+import sys
 import subprocess
 import argparse
 from os.path import join, exists
-from copy import deepcopy
 from common import *
+from result import *
 from drifuzz_util import *
 sys.path.append(join(PANDA_SRC, "panda/scripts"))
 from run_guest import create_recording
@@ -21,13 +21,6 @@ args = parser.parse_args()
 outdir=get_out_dir(args.target)
 if not exists(outdir):
     os.mkdir(outdir)
-
-def bytearray_set(bs, ind, val):
-    if ind < len(bs):
-        bs[ind] = val
-    else:
-        bs.extend(b'\x00'*(ind-len(bs)))
-        bs.append(val)
 
 def get_trim_start():
     with open(get_drifuzz_index(args.target), 'r') as f:
@@ -97,62 +90,22 @@ def run_concolic():
     socket_thread.stop()
 
 def parse_concolic():
-    input2seed = {}
-    orig:bytearray
-    with open(args.seed, 'rb') as f:
-        orig = bytearray(f.read())
-    with open(get_drifuzz_index(args.target), 'r') as f:
-        for line in f:
-            entries = line.split(', ')
-            assert(entries[0].split(' ')[0] == 'input_index:')
-            assert(entries[1].split(' ')[0] == 'seed_index:')
-            assert(entries[2].split(' ')[0] == 'size:')
-            input_index = int(entries[0].split(' ')[1], 16)
-            seed_index = int(entries[1].split(' ')[1], 16)
-            size = int(entries[2].split(' ')[1])
-            for i in range(size):
-                input2seed[input_index+i] = seed_index+i
-    copy = deepcopy(orig)
-    with open(join(outdir, '0'), 'wb') as o:
-        o.write(orig)
-
-    out_index = -1
-    warned = False
-    with open(get_drifuzz_path_constraints(args.target), 'r') as f:
-        for line in f:
-            assert(line[-1] == '\n')
-            line = line[:-1]
-            if '= Z3 Path Solver End =' in line:
-                # reset and export
-                with open(join(outdir, str(out_index)), 'wb') as o:
-                    o.write(copy)
-                copy = deepcopy(orig)
-            if 'Count:' in line:
-                splited = line.split(' ')
-                out_index = int(splited[1])
-            if 'Inverted value' in line:
-                splited = line.split(' ')
-                assert(splited[0] == 'Inverted')
-                assert(splited[1] == 'value:')
-                assert(splited[2][:4] == 'val_')
-                assert(splited[3] == '=')
-                assert(splited[4][:2] == '#x')
-                input_index = int(splited[2][4:], 16)
-                new_val = int(splited[4][2:], 16)
-                assert(new_val >= 0 and new_val <= 255)
-                if input_index in input2seed:
-                    seed_index = input2seed[input_index]
-                    bytearray_set(copy, seed_index, new_val)
-                elif not warned:
-                    warned = True
-                    print('Some input_index is not mapped to seed_index')
-                    print('Maybe qemu simulated some reg')
-
+    CR_result = ConcolicResult( get_drifuzz_path_constraints(args.target),
+                    get_drifuzz_index(args.target))
+    CR_result.generate_inverted_input(args.seed, outdir)
+    jcc_mod_pc = {}
+    for pc in args.ones:
+        jcc_mod_pc[int(pc, 16)] = 1
+    for pc in args.zeros:
+        jcc_mod_pc[int(pc, 16)] = 0
+    return CR_result.is_jcc_mod_ok(jcc_mod_pc) 
 
 def main():
     setup_work_dir(target=args.target)
     run_concolic()
-    parse_concolic()
+    if parse_concolic() == False:
+        return 1
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
