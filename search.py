@@ -281,19 +281,10 @@ def execute(model, input):
     """
     print('[search]: execute')
     bytes_to_file(get_out_file(0), input)
-    remaining_redo = 2
+    # remaining_redo = 2
     test_branch = last_branch_in_model(model)
     run_concolic(args.target, get_out_file(0))
     curr_count, path, br_pc, new_branch = get_next_path(model)
-    if test_branch != 0:
-        while remaining_redo > 0 and not pc_in_path(test_branch, path):
-            print('[search]: repeat because new edge not seen')
-            run_concolic(args.target, get_out_file(0))
-            curr_count, path, br_pc, new_branch = get_next_path(model)
-            remaining_redo -= 1
-        if remaining_redo == 0:
-            return get_score(model), file_to_bytes(get_out_file(0)), False, path, new_branch
-    # remaining_run = 10
     remaining_run = 5
     remaining_others = 10
     while remaining_run > 0 and remaining_others > 0:
@@ -302,16 +293,6 @@ def execute(model, input):
             break
         run_concolic(args.target, get_out_file(curr_count))
         curr_count, path, br_pc, new_branch = get_next_path(model)
-
-        if test_branch != 0:
-            remaining_redo = 2
-            while remaining_redo > 0 and not pc_in_path(test_branch, path):
-                print('[search]: repeat because new edge not seen')
-                remaining_redo -= 1
-                run_concolic(args.target, get_out_file(0))
-                curr_count, path, br_pc, new_branch = get_next_path(model)
-            if remaining_redo == 0:
-                return get_score(model), file_to_bytes(get_out_file(0)), False, path, new_branch
 
         # Dec remaining_run only when flipping the testing branch
         print(f"br_pc {hex(br_pc)}, last_branch_in_model {hex(test_branch)}")
