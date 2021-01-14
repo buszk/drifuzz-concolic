@@ -155,13 +155,8 @@ def get_next_path(model):
     br_pc = 0
     new_branch = False
     with open(get_drifuzz_path_constraints(args.target), 'r') as f:
+        toadd = False
         for line in f:
-            toadd = False
-            count = 0
-            condition = 0
-            pc = 0
-            h = 0
-            v = 0
             if "Count: " in line:
                 sp = line.split(' ')
                 assert(sp[0] == 'Count:')
