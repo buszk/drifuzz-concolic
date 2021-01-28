@@ -1,5 +1,11 @@
 from os.path import join
 from copy import deepcopy
+from mtype import Cond
+
+# TODO: duplicate code
+def file_to_bytes(fname):
+    with open(fname, 'rb') as f:
+        return f.read()
 
 class ExecutedBranch(object):
     """
@@ -14,22 +20,36 @@ class ExecutedBranch(object):
         self.vars = vars
         self.sym_vars = sym_vars
         self.inverted_vals = inverted_vals
+        self.flippable = (inverted_vals != {})
+        self._flipped_input = None
     
     def __str__(self):
         return  f'Count: {self.count}, PC: {hex(self.pc)}, Cond: {self.cond}, ' \
                 f'Hash: {hex(self.hash)}, Vars: {hex(self.vars)}, ' \
                 f'Sym_vars: {",".join(self.sym_vars)}'
 
+    def set_flipped_input(self, input:bytearray):
+        assert self.flippable
+        self._flipped_input = input
+
+    def get_flipped_input(self):
+        assert self._flipped_input
+        return self._flipped_input
+
 class ConcolicResult(object):
     """
     docstring
     """
-    def __init__(self, path_constraints_file, index_file):
+    def __init__(self, path_constraints_file, index_file, outdir=""):
         """
         docstring
         """
         self.input2seed = {}
         self.executed_branches:[ExecutedBranch] = []
+        self.num_unique_mmio = 0
+        self._appeared_mmio = {}
+        self.jcc_mod = {}
+        self.jcc_mod_set = False
         with open(index_file, 'r') as f:
             for line in f:
                 entries = line.split(', ')
@@ -41,6 +61,16 @@ class ConcolicResult(object):
                 size = int(entries[2].split(' ')[1])
                 for i in range(size):
                     self.input2seed[input_index+i] = seed_index+i
+                if len(entries) > 3:
+                    # mmio
+                    assert(entries[3].split(' ')[0] == 'address:')
+                    address = int(entries[3].split(' ')[1], 16)
+                    if address not in self._appeared_mmio:
+                        self.num_unique_mmio += 1
+                        self._appeared_mmio[address] = True
+                else:
+                    # dma
+                    pass
         
         with open(path_constraints_file, 'r') as f:
             for line in f:
@@ -93,6 +123,11 @@ class ConcolicResult(object):
                     else:
                         print('Some input_index is not mapped to seed_index')
                         print('Maybe qemu simulated some reg')
+        
+        if outdir != "":
+            for br in self.executed_branches:
+                if br.flippable:
+                    br.set_flipped_input(file_to_bytes(join(outdir, str(br.count))))
 
     def __str__(self):
         """
@@ -107,13 +142,24 @@ class ConcolicResult(object):
             bs.extend(b'\x00'*(ind-len(bs)))
             bs.append(val)
 
-    def generate_inverted_input(self, seed_fn, outdir):
+    def generate_inverted_input(self, seed_fn, outdir, jcc_pc_map={}):
         """
         docstring
         """
         orig:bytearray
         with open(seed_fn, 'rb') as f:
             orig = bytearray(f.read())
+
+        # jcc mod modifies the branch instruction to always go the targeted
+        # direction 0 or 1. Here, we flip all the jcc branch that is
+        # inconsistent with targeted direction.
+        if jcc_pc_map != {}:
+            for EB_branch in self.executed_branches:
+                if EB_branch.pc in jcc_pc_map and \
+                EB_branch.cond != jcc_pc_map[EB_branch.pc]:
+                    for k, v in EB_branch.inverted_vals.items():
+                        self._bytearray_set(orig, k, v)
+
         copy = deepcopy(orig)
         with open(join(outdir, '0'), 'wb') as o:
             o.write(orig)
@@ -125,13 +171,14 @@ class ConcolicResult(object):
                 o.write(copy)
             copy = deepcopy(orig)
 
-    def is_jcc_mod_ok(self, pc_list):
+    def is_jcc_mod_ok(self):
         """
         docstring
         """
+        assert self.jcc_mod_set
         jcc_var_set = {}
         for EB_branch in self.executed_branches:
-            if EB_branch.pc in pc_list:
+            if EB_branch.pc in self.jcc_mod:
                 for var in EB_branch.sym_vars:
                     jcc_var_set[var] = True
             else:
@@ -140,6 +187,143 @@ class ConcolicResult(object):
                         return False
             # print(jcc_var_set, EB_branch.sym_vars)
         return True
+    
+    def jcc_mod_confict_pcs(self):
+        """
+        docstring
+        """
+        assert self.jcc_mod_set
+        jcc_var_set = {}
+        conficlt_pc = []
+        var2brs = {}
+        for EB_branch in self.executed_branches:
+            if EB_branch.pc in self.jcc_mod:
+                for var in EB_branch.sym_vars:
+                    jcc_var_set[var] = True
+                    if var in var2brs:
+                        if EB_branch.pc not in var2brs[var]:
+                            var2brs[var].append(EB_branch.pc)
+                    else:
+                        var2brs[var] = [EB_branch.pc]
+            else:
+                for var in EB_branch.sym_vars:
+                    if var in jcc_var_set:
+                        for p in var2brs[var]:
+                            if p not in conficlt_pc:
+                                conficlt_pc.append(p)
+                        
+            # print(jcc_var_set, EB_branch.sym_vars)
+        return conficlt_pc
+
+
+    def pc_in_path(self, pc):
+        for br in self.executed_branches:
+            if br.flippable and br.pc == pc:
+                return True
+        return False
+
+    def next_new_branch(self, model):
+        for br in self.executed_branches:
+            if br.flippable and br.pc not in model:
+                return br.pc
+        return 0
+
+    def num_concolic_branch(self):
+        """
+        docstring
+        """
+        result = 0
+        for br in self.executed_branches:
+            if br.flippable:
+                result += 1
+        return result
+    
+    def score_after_first_appearence(self, pc):
+        """
+        docstring
+        """
+        count = 0
+        pcs = []
+        for br in self.executed_branches:
+            if br.pc == pc:
+                after = True
+            if after:
+                count += 1
+                if pc not in pcs:
+                    pcs.append(pc)
+        return len(pcs), count
+        
+    def next_branch_to_flip(self, model):
+        print("[result] next_branch_to_flip")
+        for br in self.executed_branches:
+            if not br.flippable:
+                # print("not flippable")
+                continue
+            if br.pc in self.jcc_mod:
+                # print("in jcc_mod")
+                continue
+            if br.pc not in model:
+                # print("not in model")
+                continue
+            if model[br.pc] == Cond.BOTH: #Cond.BOTH
+                # print("model both")
+                continue
+            # print(model[br.pc], br.cond, model[br.pc] == br.cond)
+            if model[br.pc] != br.cond:
+                return br.count, br.pc
+        return -1, 0
+
+    def next_switch_to_flip(self, model):
+        curr_pc = 0
+        h = 0
+        v = 0
+        idxs = []
+        outputs = []
+        for br in self.executed_branches:
+            if br.pc in model and curr_pc == 0:
+                continue
+            elif br.pc in self.jcc_mod:
+                pass
+            elif curr_pc == 0:
+                curr_pc = br.pc
+                h = br.hash
+                v = br.vars
+                idxs.append(br.count)
+                outputs.append(br.get_flipped_input())
+            elif curr_pc == br.pc and br.hash != h and br.vars == v:
+                # Same bytes different hash
+                idxs.append(br.count)
+                outputs.append(br.get_flipped_input())
+            else:
+                break
+        if len(idxs) > 1:
+            print('[result] next switch: ', idxs)
+            return curr_pc, outputs
+        else:
+            return 0, 0
+
+    def has_new_branch(self, model):
+        for br in self.executed_branches:
+            if br.flippable and br.pc not in model:
+                return True
+        return False
+
+    def set_jcc_mod(self, jcc_mod):
+        self.jcc_mod = jcc_mod
+        self.jcc_mod_set = True
+
+    def unflippable_model(self):
+        """
+        docstring
+        """
+        res = {}
+        for br in self.executed_branches:
+            if not br.flippable:
+                if br.pc in res:
+                    assert res[br.pc] == br.cond
+                else:
+                    res[br.pc] = br.cond
+        return res
 
 if __name__ == '__main__':
     CR_a = ConcolicResult('work/ath9k/drifuzz_path_constraints', 'work/ath9k/drifuzz_index')
