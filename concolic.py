@@ -100,6 +100,7 @@ def run_concolic():
     global_module.save_data(args.target)
 
     socket_thread.stop()
+    return 0
 
 def parse_concolic():
     CR_result = ConcolicResult( get_drifuzz_path_constraints(args.target),
@@ -114,7 +115,8 @@ def parse_concolic():
 
 def main():
     setup_work_dir(target=args.target)
-    run_concolic()
+    if run_concolic():
+        return 2
     if parse_concolic() == False:
         return 1
     return 0
