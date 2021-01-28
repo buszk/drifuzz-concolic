@@ -46,8 +46,12 @@ def run_concolic():
     
     jcc_mod_str = 'jcc_mod:'
     for e in args.zeros:
+        if e[0:2] == '0x':
+            e = e[2:]
         jcc_mod_str += f"0x{e}=0,"
     for e in args.ones:
+        if e[0:2] == '0x':
+            e = e[2:]
         jcc_mod_str += f"0x{e}=1,"
     if jcc_mod_str != 'jcc_mod:':
         jcc_mod_str = jcc_mod_str[:-1]
