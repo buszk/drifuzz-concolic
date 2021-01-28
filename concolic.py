@@ -57,6 +57,14 @@ def run_concolic():
     create_recording(qemu_path, get_qcow(target), get_snapshot(target), \
             get_cmd(target), copy_dir, get_recording_path(target), \
             expect_prompt, cdrom, extra_args=extra_args)
+
+    # Sanity check?
+    mmio_count = len(open(get_drifuzz_index(args.target)).readlines())
+    if mmio_count > 10000:
+        print("There is way too many mmio in the exeuction. Terminate")
+        socket_thread.stop()
+        return 1
+
     # Trim
     cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
         "-replay", get_recording_path(target),
