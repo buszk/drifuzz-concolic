@@ -103,15 +103,22 @@ def run_concolic():
     return 0
 
 def parse_concolic():
-    CR_result = ConcolicResult( get_drifuzz_path_constraints(args.target),
+    CR_result = ConcolicResult(
+                    get_drifuzz_path_constraints(args.target),
                     get_drifuzz_index(args.target))
-    CR_result.generate_inverted_input(args.seed, outdir)
     jcc_mod_pc = {}
     for pc in args.ones:
         jcc_mod_pc[int(pc, 16)] = 1
     for pc in args.zeros:
         jcc_mod_pc[int(pc, 16)] = 0
-    return CR_result.is_jcc_mod_ok(jcc_mod_pc) 
+
+    CR_result.set_jcc_mod(jcc_mod_pc)
+    jcc_ok = CR_result.is_jcc_mod_ok()
+    if jcc_ok:
+        CR_result.generate_inverted_input(args.seed, outdir, jcc_pc_map=jcc_mod_pc)
+    else:
+        CR_result.generate_inverted_input(args.seed, outdir)
+    return jcc_ok
 
 def main():
     setup_work_dir(target=args.target)
