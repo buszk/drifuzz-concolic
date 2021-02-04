@@ -21,3 +21,6 @@ perf*
 # Panda record & replay files
 *-snp
 *.plog
+
+# Work
+work/
