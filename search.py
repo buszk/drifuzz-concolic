@@ -7,6 +7,7 @@ from enum import IntEnum
 from copy import deepcopy
 from collections import namedtuple
 from common import *
+from result import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("target")
@@ -22,6 +23,7 @@ BranchT = namedtuple("BranchT", "index pc cond hash vars file")
 ScoreT = namedtuple("ScoreT", "ummio nmmio")
 
 br_model = {} #{br: Cond}
+br_blacklist = []
 
 def get_out_file(n):
     return os.path.join(get_out_dir(args.target), str(n))
@@ -131,127 +133,17 @@ def next_switch(model, path):
     else:
         return 0, 0
     
-
-
-
 def print_model(model):
     for key, value in model.items():
         print(f'    {hex(key)}: {value}')
-    
-def get_next_path(model):
-    """Parse and choose the next branch to flip from model
-    Args:
-        model (dict): input model
 
-    Returns:
-        result: branch index to flip
-        path: the path of last execution
-        br_pc: the flipped branch program counter
-        new_branch: path has a new branch not covered by model
-    """
-    print('[search]: get_next_path')
-    result = -1
-    path = []
-    br_pc = 0
-    new_branch = False
-    with open(get_drifuzz_path_constraints(args.target), 'r') as f:
-        toadd = False
-        for line in f:
-            if "Count: " in line:
-                sp = line.split(' ')
-                assert(sp[0] == 'Count:')
-                assert(sp[2] == 'Condition:')
-                assert(sp[4] == 'PC:')
-                assert(sp[6] == 'Hash:')
-                assert(sp[8] == 'Vars:')
-                count = int(sp[1])
-                condition = int(sp[3])
-                pc = int(sp[5], 16)
-                h = int(sp[7], 16)
-                v = int(sp[9], 16)
-                toadd = True
-            elif toadd and "Inverted" in line:
-                toadd = False
-                print(count, hex(pc), condition)
-                br = BranchT(count, pc, condition, h, v, file_to_bytes(get_out_file(count)))
-                path.append(br)
-                if pc not in model:
-                    new_branch = True
-                    continue
-                if model[pc] == Cond.BOTH:
-                    continue
-                if model[pc] != condition and result == -1:
-                    result = count
-                    br_pc = pc
-    return result, path, br_pc, new_branch
-
-def num_unique_mmio():
-    print('[search]: num_unique_mmio')
-    s = set()
-    with open(get_drifuzz_index(args.target), 'r') as f:
-        for line in f:
-            entries = line.split(', ')
-            # assert(entries[0].split(' ')[0] == 'input_index:')
-            # assert(entries[1].split(' ')[0] == 'seed_index:')
-            # assert(entries[2].split(' ')[0] == 'size:')
-            assert(entries[3].split(' ')[0] == 'address:')
-            # input_index = int(entries[0].split(' ')[1], 16)
-            # seed_index = int(entries[1].split(' ')[1], 16)
-            # size = int(entries[2].split(' ')[1])
-            address = int(entries[3].split(' ')[1], 16)
-            s.add(address)
-    return len(s)
-
-
-def num_concolic_branches():
-    """Number of flippable branch
-
-    Returns:
-        n: Number of flippable branch
-    """
-    print('[search]: num_concolic_branches')
-    count = 0
-    with open(get_drifuzz_path_constraints(args.target), 'r') as f:
-        for line in f:
-            toadd = False
-            if "Count: " in line:
-                toadd = True
-            elif toadd and "Inverted" in line:
-                toadd = False
-                count += 1
-    return count
-
-def get_score(model):
-    # 1000 * unique pc - total pc
-    print('[search]: get_score')
-    count = 0
-    pcs = []
-    last_pc = last_branch_in_model(model)
-    after = False
-    with open(get_drifuzz_path_constraints(args.target), 'r') as f:
-        for line in f:
-            if "Count: " in line:
-                sp = line.split(' ')
-                assert(sp[0] == 'Count:')
-                assert(sp[2] == 'Condition:')
-                assert(sp[4] == 'PC:')
-                pc = int(sp[5], 16)
-                if pc == last_pc:
-                    after = True
-                if after:
-                    count += 1
-                    if pc not in pcs:
-                        pcs.append(pc)
-                    
-    return ScoreT(len(pcs), count)
-
-
-
-def run_concolic(target, inp):
+def run_concolic(target, inp, zeros=[], ones=[]):
     """Run concolic script
     Args:
         target (str): target module
         inp (str): input file
+        zeros ([int]): branch pc forced to be zero
+        ones ([int]): branch pc forced to be one 
     """
     print('[search]: run_concolic')
     # shutil.rmtree('out')
@@ -260,11 +152,26 @@ def run_concolic(target, inp):
     remove_if_exits(get_drifuzz_path_constraints(args.target))
 
     print(f'Executing input {inp}')
+    
+    extra_args = []
+    if len(zeros) > 0:
+        extra_args += ['--zeros']
+        extra_args += [str(hex(x)) for x in zeros]
+
+    if len(ones) > 0:
+        extra_args += ['--ones']
+        extra_args += [str(hex(x)) for x in ones]
+
     with open(get_concolic_log(), 'a+') as f:
-        cmd = ['./concolic.py', target, inp]
+        cmd = ['./concolic.py', target, inp] + extra_args
         p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=f, stderr=f)
         p.wait()
-        assert(p.returncode == 0)
+        assert(p.returncode == 0 or p.returncode == 1)
+    result = ConcolicResult(
+        get_drifuzz_path_constraints(args.target),
+        get_drifuzz_index(args.target),
+        outdir=get_out_dir(args.target))
+    return result
 
 def execute(model, input):
     """Execute model given initial input
@@ -283,16 +190,22 @@ def execute(model, input):
     bytes_to_file(get_out_file(0), input)
     # remaining_redo = 2
     test_branch = last_branch_in_model(model)
-    run_concolic(args.target, get_out_file(0))
-    curr_count, path, br_pc, new_branch = get_next_path(model)
+    result = run_concolic(args.target, get_out_file(0))
+    score = result.score_after_first_appearence(test_branch)
+    path = result.get_path()
+    new_branch = result.has_new_branch(model)
+    curr_count, br_pc = result.next_branch_to_flip(model)
     remaining_run = 5
     remaining_others = 10
     while remaining_run > 0 and remaining_others > 0:
         
         if (curr_count < 0):
             break
-        run_concolic(args.target, get_out_file(curr_count))
-        curr_count, path, br_pc, new_branch = get_next_path(model)
+        result = run_concolic(args.target, get_out_file(curr_count))
+        score = result.score_after_first_appearence(test_branch)
+        path = result.get_path()
+        new_branch = result.has_new_branch(model)
+        curr_count, br_pc = result.next_branch_to_flip(model)
 
         # Dec remaining_run only when flipping the testing branch
         print(f"br_pc {hex(br_pc)}, last_branch_in_model {hex(test_branch)}")
@@ -303,9 +216,9 @@ def execute(model, input):
             remaining_others -= 1
     
     if remaining_run == 0:
-        return get_score(model), file_to_bytes(get_out_file(0)), False, path, new_branch
+        return score, file_to_bytes(get_out_file(0)), False, path, new_branch
     
-    return get_score(model), file_to_bytes(get_out_file(0)), True, path, new_branch
+    return score, file_to_bytes(get_out_file(0)), True, path, new_branch
 
 
 def converge(model, input):
