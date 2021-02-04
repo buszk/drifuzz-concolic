@@ -4,30 +4,16 @@ import sys
 import argparse
 import subprocess
 from copy import deepcopy
-from collections import namedtuple
 from common import *
 from result import ConcolicResult
-from mtype import Cond
+from mtype import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("target")
 parser.add_argument("input")
 args = parser.parse_args()
 
-BranchT = namedtuple("BranchT", "index pc cond hash vars file")
-ScoreT = namedtuple("ScoreT", "ummio nmmio")
-
 br_model = {} #{br: Cond}
-br_model = {
-    0xffffffffa01b2640: 1,
-    0xffffffffa01bd000: 0,
-    0xffffffffa01bd00b: 2,
-}
-br_blacklist = []
-br_blacklist = [
-    0xffffffffa01bd000,
-    0xffffffffa01bd00b,
-]
 unflippable = {}
 
 def get_out_file(n):
@@ -55,8 +41,8 @@ def best(tup1, tup2):
     print('[search_mass]: best')
     print('true model:', tup1[0], tup1[2])
     print('false model', tup2[0], tup2[2])
-    score1, output1, converge1, path1, model1, newbr1 = tup1
-    score2, output2, converge2, path2, model2, newbr2 = tup2
+    score1, output1, converge1, path1, model1, newbr1, result1 = tup1
+    score2, output2, converge2, path2, model2, newbr2, result2 = tup2
     if not newbr1 and not newbr2:
         # Neither has new branches: ignore convergence, return best score
         return (tup1, False) if (comp_score(score1, score2) > 0) else (tup2, False)
@@ -113,163 +99,34 @@ def next_branch_pc(model, path):
         return br.pc
     return 0
 
-def next_switch(model, path):
-    pc = 0
-    h = 0
-    v = 0
-    idxs = []
-    outputs = []
-
-    for br in path:
-        if br.pc in model and pc == 0:
-            continue
-        elif pc == 0:
-            pc = br.pc
-            h = br.hash
-            v = br.vars
-            idxs.append(br.index)
-            outputs.append(br.file)
-        elif pc == br.pc and br.hash != h and br.vars == v:
-            # Same bytes different hash
-            idxs.append(br.index)
-            outputs.append(br.file)
-        else:
-            break
-    if len(idxs) > 1:
-        print("[search_mass]: next switch ", idxs)
-        return pc, outputs
-    else:
-        return 0, 0
-    
-
-
-
 def print_model(model):
     for key, value in model.items():
         print(f'    {hex(key)}: {value}')
-    
-def get_next_path(model):
-    """Parse and choose the next branch to flip from model
-    Args:
-        model (dict): input model
 
-    Returns:
-        result: branch index to flip
-        path: the path of last execution
-        br_pc: the flipped branch program counter
-        new_branch: path has a new branch not covered by model
-    """
-    print('[search_mass]: get_next_path')
-    result = -1
-    path = []
-    br_pc = 0
-    new_branch = False
-    with open(get_drifuzz_path_constraints(args.target), 'r') as f:
-        toadd = False
-        for line in f:
-            if "Count: " in line:
-                sp = line.split(' ')
-                assert(sp[0] == 'Count:')
-                assert(sp[2] == 'Condition:')
-                assert(sp[4] == 'PC:')
-                assert(sp[6] == 'Hash:')
-                assert(sp[8] == 'Vars:')
-                count = int(sp[1])
-                condition = int(sp[3])
-                pc = int(sp[5], 16)
-                h = int(sp[7], 16)
-                v = int(sp[9], 16)
-                toadd = True
-            elif toadd and "Inverted" in line:
-                toadd = False
-                print(count, hex(pc), condition)
-                br = BranchT(count, pc, condition, h, v, file_to_bytes(get_out_file(count)))
-                path.append(br)
-                if pc not in model:
-                    new_branch = True
-                    continue
-                if model[pc] == Cond.BOTH:
-                    continue
-                if model[pc] != condition and result == -1:
-                    result = count
-                    br_pc = pc
-    return result, path, br_pc, new_branch
-
-def num_unique_mmio():
-    print('[search_mass]: num_unique_mmio')
-    s = set()
-    with open(get_drifuzz_index(args.target), 'r') as f:
-        for line in f:
-            entries = line.split(', ')
-            # assert(entries[0].split(' ')[0] == 'input_index:')
-            # assert(entries[1].split(' ')[0] == 'seed_index:')
-            # assert(entries[2].split(' ')[0] == 'size:')
-            assert(entries[3].split(' ')[0] == 'address:')
-            # input_index = int(entries[0].split(' ')[1], 16)
-            # seed_index = int(entries[1].split(' ')[1], 16)
-            # size = int(entries[2].split(' ')[1])
-            address = int(entries[3].split(' ')[1], 16)
-            s.add(address)
-    return len(s)
-
-
-def num_concolic_branches():
-    """Number of flippable branch
-
-    Returns:
-        n: Number of flippable branch
-    """
-    print('[search_mass]: num_concolic_branches')
-    count = 0
-    with open(get_drifuzz_path_constraints(args.target), 'r') as f:
-        for line in f:
-            toadd = False
-            if "Count: " in line:
-                toadd = True
-            elif toadd and "Inverted" in line:
-                toadd = False
-                count += 1
-    return count
-
-def get_score(model):
-    # 1000 * unique pc - total pc
-    print('[search_mass]: get_score', end='')
-    count = 0
-    pcs = []
-    last_pc = last_branch_in_model(model)
-    after = False
-    with open(get_drifuzz_path_constraints(args.target), 'r') as f:
-        for line in f:
-            if "Count: " in line:
-                sp = line.split(' ')
-                assert(sp[0] == 'Count:')
-                assert(sp[2] == 'Condition:')
-                assert(sp[4] == 'PC:')
-                pc = int(sp[5], 16)
-                if pc == last_pc:
-                    after = True
-                if after:
-                    count += 1
-                    if pc not in pcs:
-                        pcs.append(pc)
-    print(f' {len(pcs)} {count}')
-    return ScoreT(len(pcs), count)
-
-def run_concolic_model(target, inp, model):
-    global br_blacklist
+def get_lists_from_model(model, blacklist={}, addition={}):
     zeros = []
     ones = []
     jcc_pcs = {}
-    latest_br_pc = last_branch_in_model(model)
     for k, v in model.items():
-        if k in br_blacklist:
-            continue
-        if v == Cond.FALSE:
-            zeros.append(k)
-            jcc_pcs[k] = False
-        elif v == Cond.TRUE:
-            ones.append(k)
-            jcc_pcs[k] = True
+        if k not in blacklist:
+            if v == Cond.FALSE:
+                zeros.append(k)
+                jcc_pcs[k] = False
+            elif v == Cond.TRUE:
+                ones.append(k)
+                jcc_pcs[k] = True
+    for k, v in addition.items():
+        if k not in model:
+            if v == Cond.FALSE:
+                zeros.append(k)
+                jcc_pcs[k] = False
+            elif v == Cond.TRUE:
+                ones.append(k)
+                jcc_pcs[k] = True
+    return zeros, ones, jcc_pcs
+
+def run_concolic_model(target, inp, model):
+    zeros, ones, jcc_pcs = get_lists_from_model(model)
     result:ConcolicResult = run_concolic(target, inp, zeros=zeros, ones=ones)
     if result == None:
         return None
@@ -277,16 +134,23 @@ def run_concolic_model(target, inp, model):
     if result.is_jcc_mod_ok():
         return result
 
-    # Remove latest branch pc and try again
-    remove_list = result.jcc_mod_confict_pcs()
-    br_blacklist += remove_list
-    for rpc in remove_list:
-        jcc_pcs.pop(rpc, None)
-        if rpc in zeros:
-            zeros.remove(rpc)
-        if rpc in ones:
-            ones.remove(rpc)
-    result:ConcolicResult = run_concolic(target, inp, zeros=zeros, ones=ones)
+    # Run a second time
+    blacklist = result.get_conflict_pcs()
+    zeros, ones, jcc_pcs = get_lists_from_model(model, blacklist=blacklist)
+    result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones)
+    if result == None:
+        return None
+    result.set_jcc_mod(jcc_pcs)
+    if result.is_jcc_mod_ok():
+        return result
+
+    # Add conflict pc's and try again
+    blacklist = result.jcc_mod_confict_pcs()
+    zeros, ones, jcc_pcs = get_lists_from_model(
+                                        model,
+                                        blacklist=blacklist,
+                                        addition=blacklist)
+    result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones)
     if result == None:
         return None
     result.set_jcc_mod(jcc_pcs)
@@ -294,9 +158,6 @@ def run_concolic_model(target, inp, model):
         return result
     else:
         assert False
-
-
-
 
 def run_concolic(target, inp, zeros=[], ones=[]):
     """Run concolic script
@@ -327,8 +188,6 @@ def run_concolic(target, inp, zeros=[], ones=[]):
 
     with open(get_concolic_log(), 'a+') as f:
         cmd = ['./concolic.py', target, inp] + extra_args
-        global br_blacklist
-        print(' '.join([str(hex(x)) for x in br_blacklist]))
         print(' '.join(cmd))
         p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=f, stderr=f)
         p.wait()
@@ -356,6 +215,7 @@ def execute(model, input, remaining_run=5, remaining_others=10):
         converged (bool): whether the model converged
         path (list): concolic pc's
         new_branch: path has a new branch not covered by model
+        result (ConcolicResult): result of execution
     """
     print('[search_mass]: execute')
     bytes_to_file(get_out_file(0), input)
@@ -365,8 +225,18 @@ def execute(model, input, remaining_run=5, remaining_others=10):
     result = run_concolic_model(args.target, get_out_file(0), model)
     if result == None:
         # FIXME: experimental
-        return ScoreT(0,0), input, False, [], False
-    curr_count, path, br_pc, new_branch = get_next_path(model)
+        return ScoreT(0,0), input, False, [], False, result
+
+    if result.is_jcc_mod_ok():
+        score = result.score_after_first_appearence(test_branch)
+        path = result.get_path()
+        new_branch = result.has_new_branch(model)
+        curr_count, br_pc = result.next_branch_to_flip(model)
+        return score, file_to_bytes(get_out_file(0)), True, path, new_branch, result
+    
+    score = result.score_after_first_appearence(test_branch)
+    path = result.get_path()
+    new_branch = result.has_new_branch(model)
     curr_count, br_pc = result.next_branch_to_flip(model)
     print(f"br_pc {hex(br_pc)}, last_branch_in_model {hex(test_branch)}")
     while remaining_run > 0 and remaining_others > 0:
@@ -377,8 +247,10 @@ def execute(model, input, remaining_run=5, remaining_others=10):
         result = run_concolic_model(args.target, get_out_file(curr_count), model)
         if result == None:
             # FIXME: experimental
-            return ScoreT(0,0), input, False, [], False
-        curr_count, path, br_pc, new_branch = get_next_path(model)
+            return ScoreT(0,0), input, False, [], False, result
+        score = result.score_after_first_appearence(test_branch)
+        path = result.get_path()
+        new_branch = result.has_new_branch(model)
         curr_count, br_pc = result.next_branch_to_flip(model)
 
         # Dec remaining_run only when flipping the testing branch
@@ -390,12 +262,12 @@ def execute(model, input, remaining_run=5, remaining_others=10):
             remaining_others -= 1
     
     if remaining_run == 0:
-        return get_score(model), file_to_bytes(get_out_file(0)), False, path, new_branch
+        return score, file_to_bytes(get_out_file(0)), False, path, new_branch, result
     
-    return get_score(model), file_to_bytes(get_out_file(0)), True, path, new_branch
+    return score, file_to_bytes(get_out_file(0)), True, path, new_branch, result
 
 
-def converge(model, input):
+def converge(model, input, tup=None):
     """converge test
     Args:
         model: input model
@@ -408,37 +280,46 @@ def converge(model, input):
         path (list): concolic pc's
         model: the input model itself
         new_branch: path has a new branch not covered by model
+        result (ConcolicResult): result of execution
     """
     print('[search_mass]: converge: model:')
-    return __converge(model, input, 1)
+    return __converge(model, input, 1, tup=tup)
 
-def __converge(model, input, depth):
+def __converge(model, input, depth, tup=None):
     print('[search_mass]: __converge')
     print_model(model)
-    score, output, converged, path, new_branch = execute(model, input)
-    switch_pc, outputs = next_switch(model, path)
+    if tup == None:
+        tup = execute(model, input)
+    score, output, converged, path, new_branch, result = tup
+    
+    # Base case
     if (depth == 0):
-        return score, output, converged, path, model, new_branch
+        return score, output, converged, path, model, new_branch, result
+    
+    # first branch not in model
     br = next_branch_pc(model, path)
     if br == 0:
-        return score, output, converged, path, model, new_branch
+        return score, output, converged, path, model, new_branch, result
 
+    switch_pc, outputs = result.next_switch_to_flip(model)
     if switch_pc:
-        tup = converge_switch(merge_dict({switch_pc: Cond.BOTH}, br_model), outputs)
-        score, output, converged, path, model, new_branch = tup
+        # next branch is a swich
+        tup = converge_switch(merge_dict(br_model, {switch_pc: Cond.BOTH}), outputs)
+        score, output, converged, path, model, new_branch, result = tup
     else:
+        # Use unflippable map to guide next branch
         global unflippable
         if br not in unflippable:
             tup, eq = best(__converge(merge_dict(model, {br: Cond.TRUE}), output, depth-1),
                             __converge(merge_dict(model, {br: Cond.FALSE}), output, depth-1))
-            score, output, converged, path, model, new_branch = tup
+            score, output, converged, path, model, new_branch, result = tup
             if eq:
                 model[br] = Cond.BOTH
         else:
             model[br] = unflippable[br]
             tup = __converge(merge_dict(model, {br: unflippable[br]}), output, depth-1)
-            score, output, converged, path, model, new_branch = tup
-    return score, output, converged, path, model, new_branch
+            score, output, converged, path, model, new_branch, result = tup
+    return score, output, converged, path, model, new_branch, result
     
 
 def converge_switch(model, outputs):
@@ -480,9 +361,13 @@ def search():
     #     return
     new_branch = True
     output = input
+    itup=None
     while new_branch:
-        tup = converge(deepcopy(br_model), output)
-        score, output, converged, path, model, new_branch = tup
+        tup = converge(
+                deepcopy(br_model), output,
+                tup=itup)
+        score, output, converged, path, model, new_branch, result = tup
+        itup = (score, output, converged, path, new_branch, result)
         update_one_branch(br_model, model)
         print("[search_mass] current model:")
         print_model(br_model)
@@ -490,7 +375,7 @@ def search():
             tup = execute(deepcopy(br_model), output, 
                             remaining_run=100,
                             remaining_others=100)
-            score, output, converged, path, new_branch = tup
+            score, output, converged, path, new_branch, result = tup
 
     bytes_to_file(get_out_file(0), output)
     print_model(br_model)
@@ -500,7 +385,7 @@ if __name__ == '__main__':
     if os.path.exists(get_concolic_log()):
         os.remove(get_concolic_log())
     try:
-        search()
+        search() 
     except KeyboardInterrupt:
         print('KeyboardInterrupt received')
         subprocess.check_call(['pkill', '-9', 'panda'])
