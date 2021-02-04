@@ -14,6 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('target', type=str)
 parser.add_argument('seed', type=str)
 parser.add_argument('--gdbreplay', default=False, action="store_true")
+parser.add_argument('--debugreplay', default=False, action="store_true")
 parser.add_argument('--ones', nargs='+', type=str, default=[])
 parser.add_argument('--zeros', nargs='+', type=str, default=[])
 args = parser.parse_args()
@@ -31,7 +32,7 @@ def get_trim_start():
             return rr_count
     return 0
 
-def run_concolic():
+def run_concolic(do_record=True, do_replay=True):
     global_module = GlobalModel()
     global_module.load_data(args.target)
     command_handler = CommandHandler(global_module, seed=args.seed)
@@ -40,7 +41,6 @@ def run_concolic():
     socket_thread.start()
 
     time.sleep(.1)
-    # Record
     target = args.target
     extra_args = get_extra_args(target, socket=qemu_socket)
     
@@ -58,44 +58,47 @@ def run_concolic():
         extra_args += ['-panda', jcc_mod_str]
     print(jcc_mod_str)
 
-    create_recording(qemu_path, get_qcow(target), get_snapshot(target), \
-            get_cmd(target), copy_dir, get_recording_path(target), \
-            expect_prompt, cdrom, extra_args=extra_args)
+    # Record
+    if do_record:
+        create_recording(qemu_path, get_qcow(target), get_snapshot(target), \
+                get_cmd(target), copy_dir, get_recording_path(target), \
+                expect_prompt, cdrom, extra_args=extra_args)
 
-    # Sanity check?
-    mmio_count = len(open(get_drifuzz_index(args.target)).readlines())
-    if mmio_count > 10000:
-        print("There is way too many mmio in the exeuction. Terminate")
-        socket_thread.stop()
-        return 1
+        # Sanity check?
+        mmio_count = len(open(get_drifuzz_index(args.target)).readlines())
+        if mmio_count > 10000:
+            print("There is way too many mmio in the exeuction. Terminate")
+            socket_thread.stop()
+            return 1
 
-    # Trim
-    cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
-        "-replay", get_recording_path(target),
-        "-panda", f"scissors:name={get_reduced_recording_path(target)},start={get_trim_start()-1000}",
-        "-pandalog", get_pandalog(target)]
-    cmd += extra_args
-    subprocess.check_call(cmd)
+        # Trim
+        cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
+            "-replay", get_recording_path(target),
+            "-panda", f"scissors:name={get_reduced_recording_path(target)},start={get_trim_start()-1000}",
+            "-pandalog", get_pandalog(target)]
+        cmd += extra_args
+        subprocess.check_call(cmd)
 
     # Replay
-    env={
-        "LD_PRELOAD":"/home/zekun/bpf/install/lib/libz3.so",
-        **os.environ
-    }
-    cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
-        "-replay", get_reduced_recording_path(target),
-        "-panda", "tainted_drifuzz",
-        "-panda", "tainted_branch",
-        #"-d", "in_asm",
-        #"-d", "in_asm,op,llvm_ir",
-        #"-dfilter", "0xffffffffa0128000..0xffffffffffffffff",
-        "-pandalog", get_pandalog(target)]
-    cmd += extra_args
+    if do_replay:
+        env={
+            "LD_PRELOAD":"/home/zekun/bpf/install/lib/libz3.so",
+            **os.environ
+        }
+        cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
+            "-replay", get_reduced_recording_path(target),
+            "-panda", "tainted_drifuzz",
+            "-panda", "tainted_branch",
+            #"-d", "in_asm",
+            #"-d", "in_asm,op,llvm_ir",
+            #"-dfilter", "0xffffffffa0128000..0xffffffffffffffff",
+            "-pandalog", get_pandalog(target)]
+        cmd += extra_args
 
-    if args.gdbreplay:
-        cmd = ["gdb", "-ex", "r", "--args"] + cmd
-    print(" ".join(cmd))
-    subprocess.check_call(cmd, env=env)
+        if args.gdbreplay:
+            cmd = ["gdb", "-ex", "r", "--args"] + cmd
+        print(" ".join(cmd))
+        subprocess.check_call(cmd, env=env)
 
     global_module.save_data(args.target)
 
@@ -114,15 +117,19 @@ def parse_concolic():
 
     CR_result.set_jcc_mod(jcc_mod_pc)
     jcc_ok = CR_result.is_jcc_mod_ok()
-    if jcc_ok:
-        CR_result.generate_inverted_input(args.seed, outdir, jcc_pc_map=jcc_mod_pc)
-    else:
-        CR_result.generate_inverted_input(args.seed, outdir)
+    CR_result.generate_inverted_input(args.seed, outdir)
     return jcc_ok
+
+def parse_arguments():
+    if args.debugreplay:
+        return False, True
+    else:
+        return True, True
 
 def main():
     setup_work_dir(target=args.target)
-    if run_concolic():
+    rc, rp = parse_arguments()
+    if run_concolic(do_record=rc, do_replay=rp):
         return 2
     if parse_concolic() == False:
         return 1
