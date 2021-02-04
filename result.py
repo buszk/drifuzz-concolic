@@ -1,6 +1,6 @@
 from os.path import join
 from copy import deepcopy
-from mtype import Cond
+from mtype import *
 
 # TODO: duplicate code
 def file_to_bytes(fname):
@@ -26,6 +26,7 @@ class ExecutedBranch(object):
     def __str__(self):
         return  f'Count: {self.count}, PC: {hex(self.pc)}, Cond: {self.cond}, ' \
                 f'Hash: {hex(self.hash)}, Vars: {hex(self.vars)}, ' \
+                f'Flippable: {self.flippable}, ' \
                 f'Sym_vars: {",".join(self.sym_vars)}'
 
     def set_flipped_input(self, input:bytearray):
@@ -50,6 +51,8 @@ class ConcolicResult(object):
         self._appeared_mmio = {}
         self.jcc_mod = {}
         self.jcc_mod_set = False
+        self.mod_value = {}
+        self.conficlt_pcs = {}
         with open(index_file, 'r') as f:
             for line in f:
                 entries = line.split(', ')
@@ -123,6 +126,36 @@ class ConcolicResult(object):
                     else:
                         print('Some input_index is not mapped to seed_index')
                         print('Maybe qemu simulated some reg')
+                
+                elif 'JCC Mod Output End' in line:
+                    pass
+
+                elif 'Mod value' in line:
+                    splited = line.split(' ')
+                    assert(splited[0] == 'Mod')
+                    assert(splited[1] == 'value:')
+                    assert(splited[2][:4] == 'val_')
+                    assert(splited[3] == '=')
+                    assert(splited[4][:2] == '#x')
+                    input_index = int(splited[2][4:], 16)
+                    new_val = int(splited[4][2:], 16)
+                    val_name = splited[2]
+                    assert(new_val >= 0 and new_val <= 255)
+                    if input_index in self.input2seed:
+                        seed_index = self.input2seed[input_index]
+                        self.mod_value[seed_index] = new_val
+                    else:
+                        print('Some input_index is not mapped to seed_index')
+                        print('Maybe qemu simulated some reg')
+                
+                elif 'Conflict PC' in line:
+                    splited = line.split(' ')
+                    assert(splited[0] == 'Conflict')
+                    assert(splited[1] == 'PC:')
+                    assert(splited[3] == 'Condition:')
+                    pcval = int(splited[2], 16)
+                    condval = int(splited[4])
+                    self.conficlt_pcs[pcval] = condval
         
         if outdir != "":
             for br in self.executed_branches:
@@ -142,7 +175,7 @@ class ConcolicResult(object):
             bs.extend(b'\x00'*(ind-len(bs)))
             bs.append(val)
 
-    def generate_inverted_input(self, seed_fn, outdir, jcc_pc_map={}):
+    def generate_inverted_input(self, seed_fn, outdir):
         """
         docstring
         """
@@ -153,12 +186,9 @@ class ConcolicResult(object):
         # jcc mod modifies the branch instruction to always go the targeted
         # direction 0 or 1. Here, we flip all the jcc branch that is
         # inconsistent with targeted direction.
-        if jcc_pc_map != {}:
-            for EB_branch in self.executed_branches:
-                if EB_branch.pc in jcc_pc_map and \
-                EB_branch.cond != jcc_pc_map[EB_branch.pc]:
-                    for k, v in EB_branch.inverted_vals.items():
-                        self._bytearray_set(orig, k, v)
+        # UPDATE
+        for k, v in self.mod_value.items():
+            self._bytearray_set(orig, k, v)
 
         copy = deepcopy(orig)
         with open(join(outdir, '0'), 'wb') as o:
@@ -176,45 +206,39 @@ class ConcolicResult(object):
         docstring
         """
         assert self.jcc_mod_set
-        jcc_var_set = {}
-        for EB_branch in self.executed_branches:
-            if EB_branch.pc in self.jcc_mod:
-                for var in EB_branch.sym_vars:
-                    jcc_var_set[var] = True
-            else:
-                for var in EB_branch.sym_vars:
-                    if var in jcc_var_set:
-                        return False
-            # print(jcc_var_set, EB_branch.sym_vars)
-        return True
+        return len(self.conficlt_pcs) == 0
     
+    #deprecated
     def jcc_mod_confict_pcs(self):
         """
         docstring
         """
-        assert self.jcc_mod_set
-        jcc_var_set = {}
-        conficlt_pc = []
-        var2brs = {}
-        for EB_branch in self.executed_branches:
-            if EB_branch.pc in self.jcc_mod:
-                for var in EB_branch.sym_vars:
-                    jcc_var_set[var] = True
-                    if var in var2brs:
-                        if EB_branch.pc not in var2brs[var]:
-                            var2brs[var].append(EB_branch.pc)
-                    else:
-                        var2brs[var] = [EB_branch.pc]
-            else:
-                for var in EB_branch.sym_vars:
-                    if var in jcc_var_set:
-                        for p in var2brs[var]:
-                            if p not in conficlt_pc:
-                                conficlt_pc.append(p)
+        # assert self.jcc_mod_set
+        # jcc_var_set = {}
+        # conficlt_pc = []
+        # var2brs = {}
+        # for EB_branch in self.executed_branches:
+        #     if EB_branch.pc in self.jcc_mod:
+        #         for var in EB_branch.sym_vars:
+        #             jcc_var_set[var] = True
+        #             if var in var2brs:
+        #                 if EB_branch.pc not in var2brs[var]:
+        #                     var2brs[var].append(EB_branch.pc)
+        #             else:
+        #                 var2brs[var] = [EB_branch.pc]
+        #     else:
+        #         for var in EB_branch.sym_vars:
+        #             if var in jcc_var_set:
+        #                 for p in var2brs[var]:
+        #                     if p not in conficlt_pc:
+        #                         conficlt_pc.append(p)
                         
-            # print(jcc_var_set, EB_branch.sym_vars)
-        return conficlt_pc
+        #     # print(jcc_var_set, EB_branch.sym_vars)
+        # return conficlt_pc
+        return self.conficlt_pcs
 
+    def get_conflict_pcs(self):
+        return self.conficlt_pcs
 
     def pc_in_path(self, pc):
         for br in self.executed_branches:
@@ -244,18 +268,23 @@ class ConcolicResult(object):
         """
         count = 0
         pcs = []
+        after = False
         for br in self.executed_branches:
+            # print(br)
+            if not br.flippable:
+                continue
             if br.pc == pc:
                 after = True
             if after:
                 count += 1
-                if pc not in pcs:
-                    pcs.append(pc)
-        return len(pcs), count
+                if br.pc not in pcs:
+                    pcs.append(br.pc)
+        return ScoreT(len(pcs), count)
         
     def next_branch_to_flip(self, model):
         print("[result] next_branch_to_flip")
         for br in self.executed_branches:
+            print(br)
             if not br.flippable:
                 # print("not flippable")
                 continue
@@ -280,11 +309,14 @@ class ConcolicResult(object):
         idxs = []
         outputs = []
         for br in self.executed_branches:
-            if br.pc in model and curr_pc == 0:
+            if not br.flippable:
+                continue
+            elif br.pc in model and curr_pc == 0:
                 continue
             elif br.pc in self.jcc_mod:
-                pass
-            elif curr_pc == 0:
+                continue
+            
+            if curr_pc == 0:
                 curr_pc = br.pc
                 h = br.hash
                 v = br.vars
@@ -319,11 +351,26 @@ class ConcolicResult(object):
         res = {}
         for br in self.executed_branches:
             if not br.flippable:
-                if br.pc in res:
-                    assert res[br.pc] == br.cond
+                if br.pc in res and res[br.pc] != br.cond:
+                    res[br.pc] == Cond.BOTH
                 else:
                     res[br.pc] = br.cond
         return res
+
+    def get_path(self):
+        path = []
+        for br in self.executed_branches:
+            if br.flippable:
+                a = BranchT(
+                    br.count,
+                    br.pc,
+                    br.cond,
+                    br.hash,
+                    br.vars,
+                    br.get_flipped_input(),
+                )
+                path.append(a)
+        return path
 
 if __name__ == '__main__':
     CR_a = ConcolicResult('work/ath9k/drifuzz_path_constraints', 'work/ath9k/drifuzz_index')
