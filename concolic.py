@@ -13,6 +13,8 @@ from run_guest import create_recording
 parser = argparse.ArgumentParser()
 parser.add_argument('target', type=str)
 parser.add_argument('seed', type=str)
+parser.add_argument('--target_branch_pc', type=str, default='0')
+parser.add_argument('--after_target_limit', type=str, default='10000')
 parser.add_argument('--gdbreplay', default=False, action="store_true")
 parser.add_argument('--debugreplay', default=False, action="store_true")
 parser.add_argument('--ones', nargs='+', type=str, default=[])
@@ -87,7 +89,7 @@ def run_concolic(do_record=True, do_replay=True):
         }
         cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
             "-replay", get_reduced_recording_path(target),
-            "-panda", "tainted_drifuzz",
+            "-panda", f"tainted_drifuzz:target_branch_pc={args.target_branch_pc},after_target_limit={args.after_target_limit}",
             "-panda", "tainted_branch",
             #"-d", "in_asm",
             #"-d", "in_asm,op,llvm_ir",
