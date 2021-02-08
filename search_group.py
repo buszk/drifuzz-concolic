@@ -126,8 +126,10 @@ def get_lists_from_model(model, blacklist={}, addition={}):
     return zeros, ones, jcc_pcs
 
 def run_concolic_model(target, inp, model):
+    test_branch = last_branch_in_model(model)
     zeros, ones, jcc_pcs = get_lists_from_model(model)
-    result:ConcolicResult = run_concolic(target, inp, zeros=zeros, ones=ones)
+    
+    result:ConcolicResult = run_concolic(target, inp, zeros=zeros, ones=ones, target_br=test_branch)
     if result == None:
         return None
     result.set_jcc_mod(jcc_pcs)
@@ -137,33 +139,33 @@ def run_concolic_model(target, inp, model):
     # Run a second time
     blacklist = result.get_conflict_pcs()
     zeros, ones, jcc_pcs = get_lists_from_model(model, blacklist=blacklist)
-    result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones)
+    result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, target_br=test_branch)
     if result == None:
         return None
     result.set_jcc_mod(jcc_pcs)
     if result.is_jcc_mod_ok():
         return result
 
-    # Add conflict pc's and try again
-    blacklist = result.jcc_mod_confict_pcs()
-    zeros, ones, jcc_pcs = get_lists_from_model(
-                                        model,
-                                        blacklist=blacklist,
-                                        addition=blacklist)
-    result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones)
-    if result == None:
-        return None
-    result.set_jcc_mod(jcc_pcs)
-    if result.is_jcc_mod_ok():
-        return result
+    # # Add conflict pc's and try again
+    # blacklist = result.jcc_mod_confict_pcs()
+    # zeros, ones, jcc_pcs = get_lists_from_model(
+    #                                     model,
+    #                                     blacklist=blacklist,
+    #                                     addition=blacklist)
+    # result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, target_br=test_branch)
+    # if result == None:
+    #     return None
+    # result.set_jcc_mod(jcc_pcs)
+    # if result.is_jcc_mod_ok():
+    #     return result
     else:
         assert False
 
-def run_concolic(target, inp, zeros=[], ones=[]):
+def run_concolic(target, inp, zeros=[], ones=[], target_br=0):
     """Run concolic script
     Args:
         target (str): target module
-        inp (str): input file
+        inp (str): input file 
         zeros ([int]): branch pc forced to be zero
         ones ([int]): branch pc forced to be one 
     Returns:
@@ -185,6 +187,10 @@ def run_concolic(target, inp, zeros=[], ones=[]):
     if len(ones) > 0:
         extra_args += ['--ones']
         extra_args += [str(hex(x)) for x in ones]
+
+    if target_br:
+        extra_args += ['--target_branch_pc', str(hex(target_br))[2:]]
+        extra_args += ['--after_target_limit', '256']
 
     with open(get_concolic_log(), 'a+') as f:
         cmd = ['./concolic.py', target, inp] + extra_args
