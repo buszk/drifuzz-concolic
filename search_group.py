@@ -38,7 +38,7 @@ def best(tup1, tup2):
         same (bool): if both sides are the same
 
     """
-    print('[search_mass]: best')
+    print('[search_group]: best')
     print('true model:', tup1[0], tup1[2])
     print('false model', tup2[0], tup2[2])
     score1, output1, converge1, path1, model1, newbr1, result1 = tup1
@@ -86,7 +86,7 @@ def last_branch_in_model(model):
     return last
 
 def pc_in_path(pc, path):
-    print(f'[search_mass]: pc_in_path {hex(pc)}')
+    print(f'[search_group]: pc_in_path {hex(pc)}')
     for br in path:
         if pc == br.pc:
             return True
@@ -169,7 +169,7 @@ def run_concolic(target, inp, zeros=[], ones=[]):
     Returns:
         result (ConcolicResult):
     """
-    print('[search_mass]: run_concolic')
+    print('[search_group]: run_concolic')
     # shutil.rmtree('out')
 
     remove_if_exits(get_drifuzz_index(args.target))
@@ -217,7 +217,7 @@ def execute(model, input, remaining_run=5, remaining_others=10):
         new_branch: path has a new branch not covered by model
         result (ConcolicResult): result of execution
     """
-    print('[search_mass]: execute')
+    print('[search_group]: execute')
     bytes_to_file(get_out_file(0), input)
     # remaining_redo = 2
     test_branch = last_branch_in_model(model)
@@ -282,11 +282,11 @@ def converge(model, input, tup=None):
         new_branch: path has a new branch not covered by model
         result (ConcolicResult): result of execution
     """
-    print('[search_mass]: converge: model:')
+    print('[search_group]: converge: model:')
     return __converge(model, input, 1, tup=tup)
 
 def __converge(model, input, depth, tup=None):
-    print('[search_mass]: __converge')
+    print('[search_group]: __converge')
     print_model(model)
     if tup == None:
         tup = execute(model, input)
@@ -323,7 +323,7 @@ def __converge(model, input, depth, tup=None):
     
 
 def converge_switch(model, outputs):
-    print('[search_mass]: converge_switch')
+    print('[search_group]: converge_switch')
     assert(len(outputs) > 1)
     tup0 = __converge(model, outputs[0], 0)
     for f in outputs[1:]:
@@ -332,7 +332,7 @@ def converge_switch(model, outputs):
     return tup0
 
 def update_one_branch(model, new_model):
-    print('[search_mass]: update_one_branch')
+    print('[search_group]: update_one_branch')
     print('model:')
     print_model(model)
 
@@ -350,7 +350,7 @@ def update_one_branch(model, new_model):
 def search():
     """search for an optimal input
     """
-    print('[search_mass]: search')
+    print('[search_group]: search')
     global br_model
     input = b''
     with open(args.input, "rb") as f:
@@ -369,7 +369,7 @@ def search():
         score, output, converged, path, model, new_branch, result = tup
         itup = (score, output, converged, path, new_branch, result)
         update_one_branch(br_model, model)
-        print("[search_mass] current model:")
+        print("[search_group] current model:")
         print_model(br_model)
         if not new_branch:
             tup = execute(deepcopy(br_model), output, 
