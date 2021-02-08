@@ -79,7 +79,13 @@ def run_concolic(do_record=True, do_replay=True):
             "-panda", f"scissors:name={get_reduced_recording_path(target)},start={get_trim_start()-1000}",
             "-pandalog", get_pandalog(target)]
         cmd += extra_args
-        subprocess.check_call(cmd)
+        p = subprocess.Popen(cmd)
+        p.wait()
+        if p.returncode != 0:
+            global_module.save_data(args.target)
+            socket_thread.stop()
+            print('PANDA Trim failed!')
+            return 1
 
     # Replay
     if do_replay:
@@ -100,7 +106,13 @@ def run_concolic(do_record=True, do_replay=True):
         if args.gdbreplay:
             cmd = ["gdb", "-ex", "r", "--args"] + cmd
         print(" ".join(cmd))
-        subprocess.check_call(cmd, env=env)
+        p = subprocess.Popen(cmd, env=env)
+        p.wait()
+        if p.returncode != 0:
+            global_module.save_data(args.target)
+            socket_thread.stop()
+            print('PANDA replay failed!')
+            return 1
 
     global_module.save_data(args.target)
 
