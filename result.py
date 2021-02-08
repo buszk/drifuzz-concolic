@@ -313,7 +313,7 @@ class ConcolicResult(object):
                 continue
             elif br.pc in model and curr_pc == 0:
                 continue
-            elif br.pc in self.jcc_mod:
+            elif br.pc in self.jcc_mod and curr_pc == 0:
                 continue
             
             if curr_pc == 0:
