@@ -14,7 +14,7 @@ parser.add_argument("input")
 args = parser.parse_args()
 
 br_model = {} #{br: Cond}
-unflippable = {}
+br_blacklist = []
 
 def get_out_file(n):
     return os.path.join(get_out_dir(args.target), str(n))
@@ -92,6 +92,13 @@ def pc_in_path(pc, path):
             return True
     return False
 
+def occurrence_in_path(pc, path):
+    count = 0
+    for br in path:
+        if pc == br.pc:
+            count += 1
+    return count
+
 def next_branch_pc(model, path):
     for br in path:
         if br.pc in model:
@@ -103,20 +110,14 @@ def print_model(model):
     for key, value in model.items():
         print(f'    {hex(key)}: {value}')
 
-def get_lists_from_model(model, blacklist={}, addition={}):
+def get_lists_from_model(model, blacklist={}, ignore=0):
     zeros = []
     ones = []
     jcc_pcs = {}
     for k, v in model.items():
-        if k not in blacklist:
-            if v == Cond.FALSE:
-                zeros.append(k)
-                jcc_pcs[k] = False
-            elif v == Cond.TRUE:
-                ones.append(k)
-                jcc_pcs[k] = True
-    for k, v in addition.items():
-        if k not in model:
+        if  k not in blacklist and \
+            k not in br_blacklist and \
+            k != ignore:
             if v == Cond.FALSE:
                 zeros.append(k)
                 jcc_pcs[k] = False
@@ -126,9 +127,12 @@ def get_lists_from_model(model, blacklist={}, addition={}):
     return zeros, ones, jcc_pcs
 
 def run_concolic_model(target, inp, model):
+    global br_blacklist
     test_branch = last_branch_in_model(model)
     zeros, ones, jcc_pcs = get_lists_from_model(model)
     
+    # First run
+    print("First concolic model run")
     result:ConcolicResult = run_concolic(target, inp, zeros=zeros, ones=ones, target_br=test_branch)
     if result == None:
         return None
@@ -137,13 +141,26 @@ def run_concolic_model(target, inp, model):
         return result
 
     # Run a second time
+    print("Repeat with updated output")
     blacklist = result.get_conflict_pcs()
-    zeros, ones, jcc_pcs = get_lists_from_model(model, blacklist=blacklist)
+    zeros, ones, jcc_pcs = get_lists_from_model(model)
     result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, target_br=test_branch)
     if result == None:
         return None
     result.set_jcc_mod(jcc_pcs)
     if result.is_jcc_mod_ok():
+        return result
+
+    # Remove target and try
+    print("Remove target and fall back")
+    blacklist = result.get_conflict_pcs()
+    zeros, ones, jcc_pcs = get_lists_from_model(model, blacklist=blacklist, ignore=test_branch)
+    result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, target_br=test_branch)
+    if result == None:
+        return None
+    result.set_jcc_mod(jcc_pcs)
+    if result.is_jcc_mod_ok():
+        br_blacklist += [test_branch]
         return result
 
     # # Add conflict pc's and try again
@@ -160,6 +177,8 @@ def run_concolic_model(target, inp, model):
     #     return result
     else:
         assert False
+        # Weird but fall through
+        # return None
 
 def run_concolic(target, inp, zeros=[], ones=[], target_br=0):
     """Run concolic script
@@ -205,8 +224,6 @@ def run_concolic(target, inp, zeros=[], ones=[], target_br=0):
         get_drifuzz_path_constraints(args.target),
         get_drifuzz_index(args.target),
         outdir=get_out_dir(args.target))
-    global unflippable
-    unflippable = result.unflippable_model()
     return result
 
 def execute(model, input, remaining_run=5, remaining_others=10):
@@ -238,7 +255,8 @@ def execute(model, input, remaining_run=5, remaining_others=10):
         path = result.get_path()
         new_branch = result.has_new_branch(model)
         curr_count, br_pc = result.next_branch_to_flip(model)
-        return score, file_to_bytes(get_out_file(0)), True, path, new_branch, result
+        if curr_count < 0:
+            return score, file_to_bytes(get_out_file(0)), True, path, new_branch, result
     
     score = result.score_after_first_appearence(test_branch)
     path = result.get_path()
@@ -297,7 +315,7 @@ def __converge(model, input, depth, tup=None):
     if tup == None:
         tup = execute(model, input)
     score, output, converged, path, new_branch, result = tup
-    
+
     # Base case
     if (depth == 0):
         return score, output, converged, path, model, new_branch, result
@@ -306,25 +324,24 @@ def __converge(model, input, depth, tup=None):
     br = next_branch_pc(model, path)
     if br == 0:
         return score, output, converged, path, model, new_branch, result
-
+    score = result.score_after_first_appearence(br)
+    rand_tup = score, output, converged, path, merge_dict(model, {br: Cond.RANDOM}), new_branch, result
+    
     switch_pc, outputs = result.next_switch_to_flip(model)
     if switch_pc:
         # next branch is a swich
-        tup = converge_switch(merge_dict(br_model, {switch_pc: Cond.BOTH}), outputs)
+        tup = converge_switch(merge_dict(br_model, {switch_pc: Cond.SWITCH}), outputs)
         score, output, converged, path, model, new_branch, result = tup
     else:
-        # Use unflippable map to guide next branch
-        global unflippable
-        if br not in unflippable:
-            tup, eq = best(__converge(merge_dict(model, {br: Cond.TRUE}), output, depth-1),
-                            __converge(merge_dict(model, {br: Cond.FALSE}), output, depth-1))
-            score, output, converged, path, model, new_branch, result = tup
-            if eq:
-                model[br] = Cond.BOTH
-        else:
-            model[br] = unflippable[br]
-            tup = __converge(merge_dict(model, {br: unflippable[br]}), output, depth-1)
-            score, output, converged, path, model, new_branch, result = tup
+        tup, eq = best(__converge(merge_dict(model, {br: Cond.TRUE}), output, depth-1),
+                        __converge(merge_dict(model, {br: Cond.FALSE}), output, depth-1))
+        score, output, converged, path, model, new_branch, result = tup
+        if eq and  occurrence_in_path(br, path) == 1:
+            model[br] = Cond.TRUE
+        elif best(rand_tup, tup) == (tup, False) and occurrence_in_path(br, path) > 1:
+            model[br] = Cond.RANDOM
+        elif eq and occurrence_in_path(br, path) > 1:
+            model[br] = Cond.BOTH
     return score, output, converged, path, model, new_branch, result
     
 
