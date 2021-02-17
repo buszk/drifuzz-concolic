@@ -294,12 +294,14 @@ class ConcolicResult(object):
             if br.pc not in model:
                 # print("not in model")
                 continue
-            if model[br.pc] == Cond.BOTH: #Cond.BOTH
+            if model[br.pc] >= 2: #Cond.BOTH
                 # print("model both")
                 continue
             # print(model[br.pc], br.cond, model[br.pc] == br.cond)
             if model[br.pc] != br.cond:
+                print(br.count, hex(br.pc))
                 return br.count, br.pc
+        print(-1, 0)
         return -1, 0
 
     def next_switch_to_flip(self, model):
