@@ -25,6 +25,17 @@ addrs_config = {
     "iwlwifi": {
         "iwlwifi": [0xffffffffa0000000, 798720],
     },
+    "rtl818x_pci": {
+        "rtl818x_pci": [0xffffffffa0008000, 114688],
+        "eeprom_93cx6": [0xffffffffa0000000, 16384],
+    },
+    "rtl8723ae": {
+        "rtl8723ae": [0xffffffffa0100000, 372736],
+        "btcoexist": [0xffffffffa0080000, 491520],
+        "rtl_pci": [0xffffffffa0060000, 98304],
+        "rtl8723_common": [0xffffffffa0050000, 45056],
+        "rtlwifi": [0xffffffffa0000000, 311296],
+    }
 }
 
 addr = 0
