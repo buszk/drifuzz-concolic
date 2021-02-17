@@ -83,7 +83,6 @@ class CommandHandler:
         
         with open(seed, 'rb') as infile:
             self.payload = infile.read()
-            print(type(self.payload))
             self.payload_len = len(self.payload)
 
     def get_data_by_size(self, size, ind):
@@ -175,6 +174,8 @@ class CommandHandler:
         return (0,)
 
     def handle_vm_kasan(self):
+        print("Found a bug reported by KASAN.")
+        print("Check concolic.log for details")
         return (0,)
 
     def handle_req_reset(self):
@@ -238,6 +239,7 @@ class GlobalModel():
 
 
     def save_data(self, target):
+        print('save_data', target)
         dump = {}
         args_to_save = ['next_free_idx', 'read_idx', 'dma_idx']
         for key, value in self.__dict__.items():
