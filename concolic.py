@@ -62,9 +62,15 @@ def run_concolic(do_record=True, do_replay=True):
 
     # Record
     if do_record:
-        create_recording(qemu_path, get_qcow(target), get_snapshot(target), \
-                get_cmd(target), copy_dir, get_recording_path(target), \
-                expect_prompt, cdrom, extra_args=extra_args)
+        try:
+            create_recording(qemu_path, get_qcow(target), get_snapshot(target), \
+                    get_cmd(target), copy_dir, get_recording_path(target), \
+                    expect_prompt, cdrom, extra_args=extra_args)
+        except:
+            global_module.save_data(args.target)
+            socket_thread.stop()
+            print('PANDA record failed!')
+            return 1
 
         # Sanity check?
         mmio_count = len(open(get_drifuzz_index(args.target)).readlines())
