@@ -3,6 +3,7 @@ log*
 *.log
 *.csv
 *.out
+log/
 
 .zcache
 
@@ -25,5 +26,5 @@ perf*
 # Work
 work/
 
-save/
+saves/
 crafted_inputs/
