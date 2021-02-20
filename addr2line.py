@@ -78,13 +78,13 @@ if (len(tree[addr]) == 1):
             f'--stop-addr={hex(addr - module_base+0x10)}']
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     p.wait()
-    prevline = ''
+    prevlines = []
     for line in p.stdout.readlines():
         line = line.decode('utf-8')
         if str(hex(addr - module_base))[2:] + ':' in line:
-            print(prevline, end='')
+            print(prevlines[-1], end='')
             print(line, end='')
-        prevline = line
+        prevlines.append(line)
 else:
     cmd = ['addr2line', '-f', '-e', join(linux_build, 'vmlinux'), '-a', f'{hex(addr)}']
     print(' '.join(cmd))
@@ -95,10 +95,10 @@ else:
             f'--stop-addr={hex(addr+0x10)}']
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     p.wait()
-    prevline = ''
+    prevlines = []
     for line in p.stdout.readlines():
         line = line.decode('utf-8')
         if str(hex(addr))[2:] + ':' in line:
-            print(prevline, end='')
+            print(prevlines[-1], end='')
             print(line, end='')
-        prevline = line
+        prevlines.append(line)
