@@ -35,7 +35,11 @@ addrs_config = {
         "rtl_pci": [0xffffffffa0060000, 98304],
         "rtl8723_common": [0xffffffffa0050000, 45056],
         "rtlwifi": [0xffffffffa0000000, 311296],
-    }
+    },
+    "rtwpci": {
+        "rtwpci": [0xffffffffa00b0000, 61440],
+        "rtw88": [0xffffffffa0000000, 696320],
+    },
 }
 
 addr = 0
