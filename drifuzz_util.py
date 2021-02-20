@@ -3,6 +3,7 @@ import json
 import time
 import socket
 import struct
+import shutil
 import threading
 from cmdparser import opts, Command
 from common import get_global_module
@@ -273,3 +274,5 @@ class GlobalModel():
                             k = entry['key']
                         d[k] = entry['value']
                     setattr(self, key, d)
+        shutil.copyfile(get_global_module(target),
+                        get_global_module(target)+".bk")
