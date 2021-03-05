@@ -28,7 +28,7 @@ subprocess.check_call(cmd)
 
 # Setup drifuzz model
 global_module = GlobalModel()
-global_module.load_data()
+global_module.load_data(args.target)
 command_handler = CommandHandler(global_module)
 socket_thread = SocketThread(command_handler, qemu_socket)
 
