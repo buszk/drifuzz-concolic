@@ -40,6 +40,10 @@ addrs_config = {
         "rtwpci": [0xffffffffa00b0000, 61440],
         "rtw88": [0xffffffffa0000000, 696320],
     },
+    "adm8211": {
+        "adm8211": [0xffffffffa0008000, 86016],
+        "eeprom_93cx6": [0xffffffffa0000000, 16384],
+    }
 }
 
 addr = 0
