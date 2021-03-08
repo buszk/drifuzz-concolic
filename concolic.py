@@ -10,6 +10,14 @@ from drifuzz_util import *
 sys.path.append(join(PANDA_SRC, "panda/scripts"))
 from run_guest import create_recording
 
+import pdb, traceback, signal
+def handler(signum, frame):
+    for th in threading.enumerate():
+        print(th)
+        traceback.print_stack(sys._current_frames()[th.ident])
+        print()
+signal.signal(signal.SIGUSR1, handler)
+
 parser = argparse.ArgumentParser()
 parser.add_argument('target', type=str)
 parser.add_argument('seed', type=str)
@@ -17,6 +25,7 @@ parser.add_argument('--target_branch_pc', type=str, default='0')
 parser.add_argument('--after_target_limit', type=str, default='10000')
 parser.add_argument('--gdbreplay', default=False, action="store_true")
 parser.add_argument('--debugreplay', default=False, action="store_true")
+parser.add_argument('--recordonly', default=False, action="store_true")
 parser.add_argument('--ones', nargs='+', type=str, default=[])
 parser.add_argument('--zeros', nargs='+', type=str, default=[])
 args = parser.parse_args()
@@ -34,7 +43,10 @@ def get_trim_start():
             return rr_count
     return 0
 
-def run_concolic(do_record=True, do_replay=True):
+def run_concolic(do_record=True, do_trim= True, do_replay=True):
+
+    ret = 0
+    trim_failed = False
     global_module = GlobalModel()
     global_module.load_data(args.target)
     command_handler = CommandHandler(global_module, seed=args.seed)
@@ -74,33 +86,36 @@ def run_concolic(do_record=True, do_replay=True):
 
         # Sanity check?
         mmio_count = len(open(get_drifuzz_index(args.target)).readlines())
-        if mmio_count > 10000:
-            print("There is way too many mmio in the exeuction. Terminate")
+        if mmio_count > 10000 and args.target_branch_pc == 0:
+            print(f"There is way too many mmio ({mmio_count}) in the exeuction. Terminate")
             socket_thread.stop()
             return 1
 
         # Trim
-        cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
-            "-replay", get_recording_path(target),
-            "-panda", f"scissors:name={get_reduced_recording_path(target)},start={get_trim_start()-1000}",
-            "-pandalog", get_pandalog(target)]
-        cmd += extra_args
-        p = subprocess.Popen(cmd)
-        p.wait()
-        if p.returncode != 0:
-            global_module.save_data(args.target)
-            socket_thread.stop()
-            print('PANDA Trim failed!')
-            return 1
-
+        if do_trim:
+            cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
+                "-replay", get_recording_path(target),
+                "-panda", f"scissors:name={get_reduced_recording_path(target)},start={get_trim_start()-1000}",
+                "-pandalog", get_pandalog(target)]
+            cmd += extra_args
+            p = subprocess.Popen(cmd)
+            p.wait()
+            if p.returncode != 0:
+                # global_module.save_data(args.target)
+                # socket_thread.stop()
+                print('PANDA Trim failed!')
+                trim_failed = True
+                # return 1
+            
     # Replay
     if do_replay:
         env={
             "LD_PRELOAD":"/home/zekun/bpf/install/lib/libz3.so",
             **os.environ
         }
+        record_path = get_recording_path(target) if trim_failed else get_reduced_recording_path(target)
         cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
-            "-replay", get_reduced_recording_path(target),
+            "-replay", record_path,
             "-panda", f"tainted_drifuzz:target_branch_pc={args.target_branch_pc},after_target_limit={args.after_target_limit}",
             "-panda", "tainted_branch",
             #"-d", "in_asm",
@@ -111,19 +126,22 @@ def run_concolic(do_record=True, do_replay=True):
 
         if args.gdbreplay:
             cmd = ["gdb", "-ex", "r", "--args"] + cmd
+
+        cdm = ["perf", "record", "-a", "-g", "-F", "99"] + cmd
         print(" ".join(cmd))
         p = subprocess.Popen(cmd, env=env)
         p.wait()
         if p.returncode != 0:
             global_module.save_data(args.target)
             socket_thread.stop()
-            print('PANDA replay failed!')
-            return 1
+            print(f'PANDA replay failed! exitcode={p.returncode}')
+            ret = 1
 
     global_module.save_data(args.target)
-
+    print("Stopping thread")
     socket_thread.stop()
-    return 0
+    print("Thread stopped")
+    return ret
 
 def parse_concolic():
     CR_result = ConcolicResult(
@@ -141,17 +159,20 @@ def parse_concolic():
     return jcc_ok
 
 def parse_arguments():
+    # record, trim, replay, parse
     if args.debugreplay:
-        return False, True
+        return False, True, True, False
+    elif args.recordonly:
+        return True, False, False, False
     else:
-        return True, True
+        return True, True, True, True
 
 def main():
     setup_work_dir(target=args.target)
-    rc, rp = parse_arguments()
-    if run_concolic(do_record=rc, do_replay=rp):
+    rc, tm, rp, ps = parse_arguments()
+    if run_concolic(do_record=rc, do_trim=tm, do_replay=rp):
         return 2
-    if parse_concolic() == False:
+    if ps and parse_concolic() == False:
         return 1
     return 0
 
