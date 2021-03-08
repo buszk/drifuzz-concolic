@@ -269,20 +269,27 @@ class ConcolicResult(object):
         count = 0
         pcs = []
         after = False
+        pcs_before = []
+        new_pcs = []
         for br in self.executed_branches:
             # print(br)
             if not br.flippable:
                 continue
+            if not after and br.pc not in pcs_before:
+                pcs_before.append(br.pc)
             if br.pc == pc:
                 after = True
             if after:
                 count += 1
                 if br.pc not in pcs:
                     pcs.append(br.pc)
+                if br.pc not in pcs_before:
+                    if br.pc not in new_pcs:
+                        new_pcs.append(br.pc)
         if len(pcs) == 0 and count == 0 and pc != 0:
             print(f"target: {pc}")
             assert(False and "Got zero score, check drifuzz/path_constraints")
-        return ScoreT(len(pcs), count)
+        return ScoreT(len(new_pcs), len(pcs), count)
         
     def next_branch_to_flip(self, model):
         print("[result] next_branch_to_flip")

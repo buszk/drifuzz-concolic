@@ -23,8 +23,8 @@ def get_concolic_log():
     return os.path.join('work', args.target, 'concolic.log')
 
 def comp_score(score1, score2):
-    s1 = score1.ummio *1000 - score1.nmmio
-    s2 = score2.ummio *1000 - score2.nmmio
+    s1 = score1.new *5000 + score1.ummio *1000 - score1.nmmio
+    s2 = score2.new *5000 + score2.ummio *1000 - score2.nmmio
     return s1 - s2
 
 def best(tup1, tup2):
