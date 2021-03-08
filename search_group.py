@@ -39,8 +39,8 @@ def best(tup1, tup2):
 
     """
     print('[search_group]: best')
-    print('true model:', tup1[0], tup1[2])
-    print('false model', tup2[0], tup2[2])
+    print('first model:', tup1[0], tup1[2])
+    print('second model', tup2[0], tup2[2])
     score1, output1, converge1, path1, model1, newbr1, result1 = tup1
     score2, output2, converge2, path2, model2, newbr2, result2 = tup2
     if not newbr1 and not newbr2:
@@ -324,8 +324,7 @@ def __converge(model, input, depth, tup=None):
     br = next_branch_pc(model, path)
     if br == 0:
         return score, output, converged, path, model, new_branch, result
-    score = result.score_after_first_appearence(br)
-    rand_tup = score, output, converged, path, merge_dict(model, {br: Cond.RANDOM}), new_branch, result
+    rand_tup = result.score_after_first_appearence(br), output, converged, path, merge_dict(model, {br: Cond.RANDOM}), new_branch, result
     
     switch_pc, outputs = result.next_switch_to_flip(model)
     if switch_pc:
@@ -336,12 +335,17 @@ def __converge(model, input, depth, tup=None):
         tup, eq = best(__converge(merge_dict(model, {br: Cond.TRUE}), output, depth-1),
                         __converge(merge_dict(model, {br: Cond.FALSE}), output, depth-1))
         score, output, converged, path, model, new_branch, result = tup
-        if eq and  occurrence_in_path(br, path) == 1:
+        if eq and  occurrence_in_path(br, path) <= 2:
+            print(f"[update_model] {hex(br)} Choose TRUE but BOTH are okay")
             model[br] = Cond.TRUE
-        elif best(rand_tup, tup) == (tup, False) and occurrence_in_path(br, path) > 1:
+        elif best(rand_tup, tup) == (rand_tup, False) and occurrence_in_path(br, path) > 3:
+            print(f"[update_model] {hex(br)} RANDOM is better than either TRUE/FALSE model")
             model[br] = Cond.RANDOM
-        elif eq and occurrence_in_path(br, path) > 1:
+        elif eq and occurrence_in_path(br, path) > 2:
+            print(f"[update_model] {hex(br)} Choose BOTH")
             model[br] = Cond.BOTH
+        else:
+            print(f"[update_model] {hex(br)} Choose {model[br]}")
     return score, output, converged, path, model, new_branch, result
     
 
@@ -402,7 +406,6 @@ def search():
 
     bytes_to_file(get_out_file(0), output)
     print_model(br_model)
-
 
 if __name__ == '__main__':
     if os.path.exists(get_concolic_log()):
