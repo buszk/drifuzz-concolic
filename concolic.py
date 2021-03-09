@@ -3,6 +3,7 @@ import os
 import sys
 import subprocess
 import argparse
+import tempfile
 from os.path import join, exists
 from common import *
 from result import *
@@ -50,13 +51,14 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
     global_module = GlobalModel()
     global_module.load_data(args.target)
     command_handler = CommandHandler(global_module, seed=args.seed)
-    socket_thread = SocketThread(command_handler, qemu_socket)
+    tf = tempfile.NamedTemporaryFile()
+    socket_thread = SocketThread(command_handler, tf.name)
 
     socket_thread.start()
 
     time.sleep(.1)
     target = args.target
-    extra_args = get_extra_args(target, socket=qemu_socket)
+    extra_args = get_extra_args(target, socket=tf.name)
     
     jcc_mod_str = 'jcc_mod:'
     for e in args.zeros:
@@ -137,6 +139,7 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
             print(f'PANDA replay failed! exitcode={p.returncode}')
             ret = 1
 
+    tf.close()
     global_module.save_data(args.target)
     print("Stopping thread")
     socket_thread.stop()
