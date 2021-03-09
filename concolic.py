@@ -27,6 +27,7 @@ parser.add_argument('--after_target_limit', type=str, default='10000')
 parser.add_argument('--gdbreplay', default=False, action="store_true")
 parser.add_argument('--debugreplay', default=False, action="store_true")
 parser.add_argument('--recordonly', default=False, action="store_true")
+parser.add_argument('--notrim', default=False, action="store_true")
 parser.add_argument('--ones', nargs='+', type=str, default=[])
 parser.add_argument('--zeros', nargs='+', type=str, default=[])
 args = parser.parse_args()
@@ -108,6 +109,8 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
                 print('PANDA Trim failed!')
                 trim_failed = True
                 # return 1
+        else:
+            trim_failed = True
             
     # Replay
     if do_replay:
@@ -167,6 +170,8 @@ def parse_arguments():
         return False, True, True, False
     elif args.recordonly:
         return True, False, False, False
+    elif args.notrim:
+        return True, False, True, False
     else:
         return True, True, True, True
 
