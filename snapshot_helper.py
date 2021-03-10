@@ -25,9 +25,26 @@ cmd += ['convert', '-f', 'raw', '-O', 'qcow2', get_raw_img(), get_qcow(args.targ
 subprocess.check_call(cmd)
 
 # Start qemu to obtain snapshot
-cmd = [qemu_path]
-cmd += [get_qcow(args.target)]
+cmd = [get_qcow(args.target)]
 cmd += get_extra_args(args.target)
 
-print(" ".join(cmd))
-subprocess.check_call(cmd)
+print(" ".join([qemu_path] + cmd))
+
+import sys
+import pexpect
+p = pexpect.spawn(qemu_path, cmd)
+p.logfile = sys.stderr.buffer
+p.expect('syzkaller login: ', timeout=600)
+p.sendline('root')
+p.expect('root@syzkaller:~# ')
+# Ctrl-A+C to open qemu console
+p.send('\001c')
+p.expect('(qemu)')
+# Save snapshot
+p.sendline(f'savevm {args.target}')
+# Wait for saving to finish
+p.expect('(qemu)')
+# Ctrl-A+X to quit
+p.send('\001x')
+print("")
+print("done")
