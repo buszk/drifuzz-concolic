@@ -27,6 +27,11 @@ for i in range((len(args.seq)+1)//2):
 assert os.path.exists(args.file)
 with open(args.file, 'rb') as f:
     bs = f.read()
-    res = bs.find(search_bytes)
-    print(hex(res))
+    res = 0
+    while True:
+        res = bs.find(search_bytes, res+1)
+        if res == -1:
+            break
+        print(hex(res))
+
 
