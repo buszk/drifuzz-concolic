@@ -140,6 +140,9 @@ def run_concolic_model(target, inp, model):
     if result.is_jcc_mod_ok():
         return result
 
+    # A test print
+    result.next_branch_to_flip(model)
+
     # Run a second time
     print("Repeat with updated output")
     blacklist = result.get_conflict_pcs()
@@ -150,6 +153,7 @@ def run_concolic_model(target, inp, model):
     result.set_jcc_mod(jcc_pcs)
     if result.is_jcc_mod_ok():
         return result
+    # assert(False)
 
     # Remove target and try
     print("Remove target and fall back")
@@ -311,7 +315,8 @@ def converge(model, input, tup=None):
 
 def __converge(model, input, depth, tup=None):
     print('[search_group]: __converge')
-    print_model(model)
+    if depth == 0:
+        print_model(model)
     if tup == None:
         tup = execute(model, input)
     score, output, converged, path, new_branch, result = tup
@@ -360,8 +365,8 @@ def converge_switch(model, outputs):
 
 def update_one_branch(model, new_model):
     print('[search_group]: update_one_branch')
-    print('model:')
-    print_model(model)
+    # print('model:')
+    # print_model(model)
 
     last = 0
     for k in new_model.keys():
@@ -370,8 +375,8 @@ def update_one_branch(model, new_model):
             break
     assert(last != 0)
     model[last] = new_model[last]
-    print('new_model:')
-    print_model(model)
+    # print('new_model:')
+    # print_model(model)
     
 
 def search():
