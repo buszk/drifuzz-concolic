@@ -172,7 +172,7 @@ class ConcolicResult(object):
         if ind < len(bs):
             bs[ind] = val
         else:
-            bs.extend(b'\x00'*(ind-len(bs)))
+            bs.extend(b'\xaa'*(ind-len(bs)))
             bs.append(val)
 
     def generate_inverted_input(self, seed_fn, outdir):

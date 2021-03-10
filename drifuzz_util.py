@@ -89,10 +89,10 @@ class CommandHandler:
     def get_data_by_size(self, size, ind):
         res = b''
         if ind >= self.payload_len:
-            res = b'\x00' * size
+            res = b'\xaa' * size
         elif ind + size > self.payload_len:
             res += self.payload[ind:self.payload_len]
-            res += b'\x00' * (ind + size - self.payload_len)
+            res += b'\xaa' * (ind + size - self.payload_len)
         else:
             res += self.payload[ind:ind+size]
         return res
