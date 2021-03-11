@@ -247,7 +247,7 @@ class GlobalModel():
 
         with open(get_global_module(target), \
                         'w') as outfile:
-            json.dump(dump, outfile, default=json_dumper)
+            json.dump(dump, outfile, default=json_dumper, indent=4)
         print('save_data done')
 
     def load_data(self, target):

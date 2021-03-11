@@ -433,7 +433,7 @@ def save_data(target):
         return obj.__dict__
     with open(get_search_save(target), \
                     'w') as outfile:
-        json.dump(dump, outfile, default=json_dumper)
+        json.dump(dump, outfile, default=json_dumper, indent=4)
     print('save_data done')
 
 def load_data(target):
