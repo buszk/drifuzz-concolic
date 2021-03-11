@@ -144,6 +144,7 @@ def run_concolic_model(target, inp, model):
 
     # A test print
     result.next_branch_to_flip(model)
+    print("\n".join([str(hex(x)) for x in result.get_conflict_pcs().keys()]))
 
     # Run a second time
     print("Repeat with updated output")
@@ -465,9 +466,10 @@ if __name__ == '__main__':
         search()
     except KeyboardInterrupt:
         print('KeyboardInterrupt received')
-        save_data(args.target)
         p = subprocess.Popen(['pkill', '-9', 'panda'])
         p.wait()
-        p = subprocess.Popen(['pkill', '-9', 'python'])
+        p = subprocess.Popen(['pkill', '-9', 'concolic.py'])
         p.wait()
+    finally:
+        save_data(args.target)
         sys.exit()
