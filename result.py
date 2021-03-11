@@ -52,7 +52,7 @@ class ConcolicResult(object):
         self.jcc_mod = {}
         self.jcc_mod_set = False
         self.mod_value = {}
-        self.conficlt_pcs = {}
+        self.conflict_pcs = {}
         with open(index_file, 'r') as f:
             for line in f:
                 entries = line.split(', ')
@@ -155,7 +155,7 @@ class ConcolicResult(object):
                     assert(splited[3] == 'Condition:')
                     pcval = int(splited[2], 16)
                     condval = int(splited[4])
-                    self.conficlt_pcs[pcval] = condval
+                    self.conflict_pcs[pcval] = condval
         
         if outdir != "":
             for br in self.executed_branches:
@@ -206,7 +206,7 @@ class ConcolicResult(object):
         docstring
         """
         assert self.jcc_mod_set
-        return len(self.conficlt_pcs) == 0
+        return len(self.conflict_pcs) == 0
     
     #deprecated
     def jcc_mod_confict_pcs(self):
@@ -235,10 +235,10 @@ class ConcolicResult(object):
                         
         #     # print(jcc_var_set, EB_branch.sym_vars)
         # return conficlt_pc
-        return self.conficlt_pcs
+        return self.conflict_pcs
 
     def get_conflict_pcs(self):
-        return self.conficlt_pcs
+        return self.conflict_pcs
 
     def pc_in_path(self, pc):
         for br in self.executed_branches:
