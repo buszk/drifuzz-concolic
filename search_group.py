@@ -254,7 +254,7 @@ def execute(model, input, remaining_run=5, remaining_others=10):
     result = run_concolic_model(args.target, get_out_file(0), model)
     if result == None:
         # FIXME: experimental
-        return ScoreT(0,0), input, False, [], False, result
+        return ScoreT(0, 0, 0), input, False, [], False, result
 
     if result.is_jcc_mod_ok():
         score = result.score_after_first_appearence(test_branch)
@@ -277,7 +277,7 @@ def execute(model, input, remaining_run=5, remaining_others=10):
         result = run_concolic_model(args.target, get_out_file(curr_count), model)
         if result == None:
             # FIXME: experimental
-            return ScoreT(0,0), input, False, [], False, result
+            return ScoreT(0, 0, 0), input, False, [], False, result
         score = result.score_after_first_appearence(test_branch)
         path = result.get_path()
         new_branch = result.has_new_branch(model)
