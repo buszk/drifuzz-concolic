@@ -28,6 +28,7 @@ parser.add_argument('--gdbreplay', default=False, action="store_true")
 parser.add_argument('--debugreplay', default=False, action="store_true")
 parser.add_argument('--recordonly', default=False, action="store_true")
 parser.add_argument('--notrim', default=False, action="store_true")
+parser.add_argument('--nopincpu', default=False, action="store_true")
 parser.add_argument('--ones', nargs='+', type=str, default=[])
 parser.add_argument('--zeros', nargs='+', type=str, default=[])
 args = parser.parse_args()
@@ -129,10 +130,14 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
             "-pandalog", get_pandalog(target)]
         cmd += extra_args
 
+        if not args.nopincpu:
+            import multiprocessing
+            cpu_count = os.cpu_count()
+            cmd = ["taskset", "-c", str(cpu_count-1)] + cmd
+
         if args.gdbreplay:
             cmd = ["gdb", "-ex", "r", "--args"] + cmd
 
-        cdm = ["perf", "record", "-a", "-g", "-F", "99"] + cmd
         print(" ".join(cmd))
         p = subprocess.Popen(cmd, env=env)
         p.wait()
