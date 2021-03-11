@@ -11,10 +11,12 @@ from mtype import *
 parser = argparse.ArgumentParser()
 parser.add_argument("target")
 parser.add_argument("input")
+parser.add_argument("--resume", default=False, action="store_true")
 args = parser.parse_args()
 
 br_model = {} #{br: Cond}
 br_blacklist = []
+cur_input = b''
 
 def get_out_file(n):
     return os.path.join(get_out_dir(args.target), str(n))
@@ -384,6 +386,7 @@ def search():
     """
     print('[search_group]: search')
     global br_model
+    global cur_input
     input = b''
     with open(args.input, "rb") as f:
         input = f.read()
@@ -394,12 +397,17 @@ def search():
     new_branch = True
     output = input
     itup=None
+
+    if cur_input == b'':
+        cur_input = output
+
     while new_branch:
         tup = converge(
-                deepcopy(br_model), output,
+                deepcopy(br_model), deepcopy(cur_input),
                 tup=itup)
         score, output, converged, path, model, new_branch, result = tup
         itup = (score, output, converged, path, new_branch, result)
+        cur_input = output
         update_one_branch(br_model, model)
         print("[search_group] current model:")
         print_model(br_model)
@@ -408,17 +416,58 @@ def search():
                             remaining_run=100,
                             remaining_others=100)
             score, output, converged, path, new_branch, result = tup
+            cur_input = output
 
     bytes_to_file(get_out_file(0), output)
     print_model(br_model)
 
+
+def save_data(target):
+    import base64, json
+    print('save_data', target)
+    dump = {}
+    dump['br_blacklist'] = br_blacklist
+    dump['br_model'] = [{'key': k, 'value': v} for k, v in br_model.items()]
+    dump['cur_input'] = base64.b64encode(cur_input).decode('ascii')
+    def json_dumper(obj):
+        return obj.__dict__
+    with open(get_search_save(target), \
+                    'w') as outfile:
+        json.dump(dump, outfile, default=json_dumper)
+    print('save_data done')
+
+def load_data(target):
+    """
+    Method to load an entire master state from JSON file...
+    """
+    import base64, json, shutil
+    global br_model, br_blacklist, cur_input
+    if not os.path.exists(get_search_save(target)):
+        return
+    with open(get_search_save(target), \
+                    'r') as infile:
+        dump = json.load(infile)
+        br_blacklist = dump['br_blacklist']
+        cur_input = base64.b64decode(dump['cur_input'].encode('ascii'))
+        for entry in dump['br_model']:
+            br_model[entry['key']] = entry['value']
+        
+    shutil.copyfile(get_search_save(target),
+                    get_search_save(target)+".bk")
+
+
 if __name__ == '__main__':
     if os.path.exists(get_concolic_log()):
         os.remove(get_concolic_log())
+    if args.resume:
+        load_data(args.target)
     try:
-        search() 
+        search()
     except KeyboardInterrupt:
         print('KeyboardInterrupt received')
-        subprocess.check_call(['pkill', '-9', 'panda'])
-        subprocess.check_call(['pkill', '-9', 'python'])
+        save_data(args.target)
+        p = subprocess.Popen(['pkill', '-9', 'panda'])
+        p.wait()
+        p = subprocess.Popen(['pkill', '-9', 'python'])
+        p.wait()
         sys.exit()

@@ -25,6 +25,9 @@ def get_drifuzz_path_constraints(target):
 def get_global_module(target):
     return join(work, target, f"{target}.sav")
 
+def get_search_save(target):
+    return join(work, target, "search.sav")
+
 def create_if_not_exist(d):
     if not os.path.exists(d):
         os.makedirs(d)
