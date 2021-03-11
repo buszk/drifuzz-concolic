@@ -258,7 +258,16 @@ class GlobalModel():
             return
         with open(get_global_module(target), \
                         'r') as infile:
-            dump = json.load(infile)
+            dump = {}
+            try:
+                dump = json.load(infile)
+            except json.decoder.JSONDecodeError:
+                print("We have a corrupted model save")
+                print("Try the backup file")
+                with open(get_global_module(target)+ ".bk", 'r') as f:
+                    dump = json.load(f)
+                shutil.copyfile(get_global_module(target)+".bk",
+                                get_global_module(target))
             for key, value in dump.items():
                 if key == 'next_free_idx':
                     setattr(self, key, value)
