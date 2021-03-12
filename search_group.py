@@ -424,12 +424,12 @@ def search():
 
 
 def save_data(target):
-    import base64, json
+    import binascii, json
     print('save_data', target)
     dump = {}
     dump['br_blacklist'] = br_blacklist
     dump['br_model'] = [{'key': k, 'value': v} for k, v in br_model.items()]
-    dump['cur_input'] = base64.b64encode(cur_input).decode('ascii')
+    dump['cur_input'] = binascii.hexlify(cur_input).decode('ascii')
     def json_dumper(obj):
         return obj.__dict__
     with open(get_search_save(target), \
@@ -441,7 +441,7 @@ def load_data(target):
     """
     Method to load an entire master state from JSON file...
     """
-    import base64, json, shutil
+    import binascii, json, shutil
     global br_model, br_blacklist, cur_input
     if not os.path.exists(get_search_save(target)):
         return
@@ -449,7 +449,7 @@ def load_data(target):
                     'r') as infile:
         dump = json.load(infile)
         br_blacklist = dump['br_blacklist']
-        cur_input = base64.b64decode(dump['cur_input'].encode('ascii'))
+        cur_input = binascii.unhexlify(dump['cur_input'].encode('ascii'))
         for entry in dump['br_model']:
             br_model[entry['key']] = entry['value']
         
