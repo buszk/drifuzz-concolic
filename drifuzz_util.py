@@ -192,12 +192,26 @@ class GlobalModel():
         self.next_free_idx = 0
         self.read_idx:dict = {}
         self.dma_idx:dict = {}
+        self.last_key = (0,0,0)
+        self.key_count = 0
+        self.tosave = True
+
+    def __check_repeating_key(self, key):
+        if (key == self.last_key):
+            self.key_count += 1
+        else:
+            self.key_count = 0
+        self.last_key = key
+        # print(key, self.key_count)
+        if self.key_count > 2000:
+            self.tosave = False
 
     def get_read_idx(self, key, size, cnt):
         if key in self.read_idx.keys():
             if cnt < len(self.read_idx[key]):
                 return self.read_idx[key][cnt]
             elif cnt == len(self.read_idx[key]):
+                self.__check_repeating_key(key)
                 self.read_idx[key].append(self.next_free_idx)
                 self.next_free_idx += size
                 return self.read_idx[key][cnt]
@@ -236,6 +250,8 @@ class GlobalModel():
 
 
     def save_data(self, target):
+        if not self.tosave:
+            return
         print('save_data', target)
         dump = {}
         args_to_save = ['next_free_idx', 'read_idx', 'dma_idx']
