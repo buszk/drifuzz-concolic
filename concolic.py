@@ -100,7 +100,8 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
 
         # Sanity check?
         mmio_count = len(open(get_drifuzz_index(args.target)).readlines())
-        if mmio_count > 10000 and args.target_branch_pc == 0:
+        if (mmio_count > 10000 and args.target_branch_pc == 0) or \
+            (mmio_count > 200000):
             print(f"There is way too many mmio ({mmio_count}) in the exeuction. Terminate")
             socket_thread.stop()
             return 1
