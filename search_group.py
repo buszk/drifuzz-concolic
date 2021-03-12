@@ -115,6 +115,7 @@ def print_model(model):
 def get_lists_from_model(model, blacklist={}, ignore=0):
     zeros = []
     ones = []
+    others = []
     jcc_pcs = {}
     for k, v in model.items():
         if  k not in blacklist and \
@@ -126,16 +127,20 @@ def get_lists_from_model(model, blacklist={}, ignore=0):
             elif v == Cond.TRUE:
                 ones.append(k)
                 jcc_pcs[k] = True
-    return zeros, ones, jcc_pcs
+            else:
+                others.append(k)
+        else:
+            others.append(k)
+    return zeros, ones, others, jcc_pcs
 
 def run_concolic_model(target, inp, model):
     global br_blacklist
     test_branch = last_branch_in_model(model)
-    zeros, ones, jcc_pcs = get_lists_from_model(model)
+    zeros, ones, others, jcc_pcs = get_lists_from_model(model)
     
     # First run
     print("First concolic model run")
-    result:ConcolicResult = run_concolic(target, inp, zeros=zeros, ones=ones, target_br=test_branch)
+    result:ConcolicResult = run_concolic(target, inp, zeros=zeros, ones=ones, others=others, target_br=test_branch)
     if result == None:
         return None
     result.set_jcc_mod(jcc_pcs)
@@ -149,8 +154,8 @@ def run_concolic_model(target, inp, model):
     # Run a second time
     print("Repeat with updated output")
     blacklist = result.get_conflict_pcs()
-    zeros, ones, jcc_pcs = get_lists_from_model(model)
-    result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, target_br=test_branch)
+    zeros, ones, others, jcc_pcs = get_lists_from_model(model)
+    result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, others=others, target_br=test_branch)
     if result == None:
         return None
     result.set_jcc_mod(jcc_pcs)
@@ -161,8 +166,8 @@ def run_concolic_model(target, inp, model):
     # Remove target and try
     print("Remove target and fall back")
     blacklist = result.get_conflict_pcs()
-    zeros, ones, jcc_pcs = get_lists_from_model(model, blacklist=blacklist, ignore=test_branch)
-    result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, target_br=test_branch)
+    zeros, ones, others, jcc_pcs = get_lists_from_model(model, blacklist=blacklist, ignore=test_branch)
+    result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, others=others, target_br=test_branch)
     if result == None:
         return None
     result.set_jcc_mod(jcc_pcs)
@@ -172,11 +177,11 @@ def run_concolic_model(target, inp, model):
 
     # # Add conflict pc's and try again
     # blacklist = result.jcc_mod_confict_pcs()
-    # zeros, ones, jcc_pcs = get_lists_from_model(
+    # zeros, ones, others, jcc_pcs = get_lists_from_model(
     #                                     model,
     #                                     blacklist=blacklist,
     #                                     addition=blacklist)
-    # result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, target_br=test_branch)
+    # result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, others=others, target_br=test_branch)
     # if result == None:
     #     return None
     # result.set_jcc_mod(jcc_pcs)
@@ -187,7 +192,7 @@ def run_concolic_model(target, inp, model):
         # Weird but fall through
         # return None
 
-def run_concolic(target, inp, zeros=[], ones=[], target_br=0):
+def run_concolic(target, inp, zeros=[], ones=[], others=[], target_br=0):
     """Run concolic script
     Args:
         target (str): target module
@@ -213,6 +218,10 @@ def run_concolic(target, inp, zeros=[], ones=[], target_br=0):
     if len(ones) > 0:
         extra_args += ['--ones']
         extra_args += [str(hex(x)) for x in ones]
+
+    if len(others) > 0:
+        extra_args += ['--others']
+        extra_args += [str(hex(x)) for x in others]
 
     if target_br:
         extra_args += ['--target_branch_pc', str(hex(target_br))[2:]]

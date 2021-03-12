@@ -31,6 +31,7 @@ parser.add_argument('--notrim', default=False, action="store_true")
 parser.add_argument('--nopincpu', default=False, action="store_true")
 parser.add_argument('--ones', nargs='+', type=str, default=[])
 parser.add_argument('--zeros', nargs='+', type=str, default=[])
+parser.add_argument('--others', nargs='+', type=str, default=[])
 args = parser.parse_args()
 
 outdir=get_out_dir(args.target)
@@ -45,6 +46,26 @@ def get_trim_start():
             rr_count = int(entries[5].split(' ')[1], 16)
             return rr_count
     return 0
+
+def form_jcc_mod_optiom():
+    jcc_mod_str = 'jcc_mod:'
+    for e in args.zeros:
+        if e[0:2] == '0x':
+            e = e[2:]
+        jcc_mod_str += f"0x{e}=0,"
+    for e in args.ones:
+        if e[0:2] == '0x':
+            e = e[2:]
+        jcc_mod_str += f"0x{e}=1,"
+    for e in args.others:
+        if e[0:2] == '0x':
+            e = e[2:]
+        jcc_mod_str += f"0x{e}=2,"
+    print(jcc_mod_str)
+    if jcc_mod_str != 'jcc_mod:':
+        jcc_mod_str = jcc_mod_str[:-1]
+        return ['-panda', jcc_mod_str]
+    return []
 
 def run_concolic(do_record=True, do_trim= True, do_replay=True):
 
@@ -62,19 +83,8 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
     target = args.target
     extra_args = get_extra_args(target, socket=tf.name)
     
-    jcc_mod_str = 'jcc_mod:'
-    for e in args.zeros:
-        if e[0:2] == '0x':
-            e = e[2:]
-        jcc_mod_str += f"0x{e}=0,"
-    for e in args.ones:
-        if e[0:2] == '0x':
-            e = e[2:]
-        jcc_mod_str += f"0x{e}=1,"
-    if jcc_mod_str != 'jcc_mod:':
-        jcc_mod_str = jcc_mod_str[:-1]
-        extra_args += ['-panda', jcc_mod_str]
-    print(jcc_mod_str)
+
+    extra_args += form_jcc_mod_optiom()
 
     # Record
     if do_record:
