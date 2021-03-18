@@ -130,7 +130,7 @@ class CommandHandler:
             n = self.dma_cnt[k]
             self.dma_cnt[k] += 1
 
-        return self.gm.get_dma_idx(k, size, n, reuse=False)
+        return self.gm.get_dma_idx(k, size, n, reuse=True)
 
         
     def get_dma_data(self, k, size):
