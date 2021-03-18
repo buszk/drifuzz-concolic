@@ -29,7 +29,7 @@ def comp_score(score1, score2):
     s2 = score2.new *5000 + score2.ummio *1000 - score2.nmmio
     return s1 - s2
 
-def best(tup1, tup2):
+def best(tup1, tup2, check_converge=True):
     """ Choose between two converge test result
     Args:
         tup1: first converge result
@@ -48,15 +48,15 @@ def best(tup1, tup2):
     if not newbr1 and not newbr2:
         # Neither has new branches: ignore convergence, return best score
         return (tup1, False) if (comp_score(score1, score2) > 0) else (tup2, False)
-    if converge1 and not converge2:
+    if check_converge and converge1 and not converge2:
         # Only the first converge
         return tup1, False
-    elif not converge1 and converge2:
+    elif check_converge and not converge1 and converge2:
         # Only the second converge
         return tup2, False
-    elif not converge1 and not converge2:
+    elif check_converge and not converge1 and not converge2:
         # Neither converge
-        return tup1, False
+        return (tup1, False) if (comp_score(score1, score2) > 0) else (tup2, False)
     elif score1 == score2:
         # Both converge with same scores
         return tup1, True
@@ -355,7 +355,7 @@ def __converge(model, input, depth, tup=None):
         if eq and  occurrence_in_path(br, path) <= 2:
             print(f"[update_model] {hex(br)} Choose TRUE but BOTH are okay")
             model[br] = Cond.TRUE
-        elif best(rand_tup, tup) == (rand_tup, False) and occurrence_in_path(br, path) > 3:
+        elif best(tup, rand_tup, check_converge=False) == (rand_tup, False) and occurrence_in_path(br, path) > 3:
             print(f"[update_model] {hex(br)} RANDOM is better than either TRUE/FALSE model")
             model[br] = Cond.RANDOM
         elif eq and occurrence_in_path(br, path) > 2:
