@@ -301,7 +301,8 @@ class ConcolicResult(object):
                         new_pcs.append(br.pc)
         if len(pcs) == 0 and count == 0 and pc != 0:
             print(f"target: {pc}")
-            assert(False and "Got zero score, check drifuzz/path_constraints")
+            # assert(False and "Got zero score, check drifuzz/path_constraints")
+            return ScoreT(0, 0, 0)
         return ScoreT(len(new_pcs), len(pcs), count)
         
     def next_branch_to_flip(self, model):
