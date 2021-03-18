@@ -80,7 +80,7 @@ if (len(tree[addr]) == 1):
     print(' '.join(cmd))
     p = subprocess.Popen(cmd)
     p.wait()
-    cmd = ['objdump', '-d', module_path,
+    cmd = ['objdump', '-Mintel', '-d', module_path,
             f'--start-addr={hex(addr - module_base-0x10)}',
             f'--stop-addr={hex(addr - module_base+0x10)}']
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
@@ -97,7 +97,7 @@ else:
     print(' '.join(cmd))
     p = subprocess.Popen(cmd)
     p.wait()
-    cmd = ['objdump', '-d', join(linux_build, 'vmlinux'),
+    cmd = ['objdump', '-Mintel', '-d', join(linux_build, 'vmlinux'),
             f'--start-addr={hex(addr)-0x10}',
             f'--stop-addr={hex(addr+0x10)}']
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
