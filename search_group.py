@@ -522,6 +522,11 @@ if __name__ == '__main__':
         p.wait()
         p = subprocess.Popen(['pkill', '-9', 'concolic.py'])
         p.wait()
+    except Exception as e:
+        print("======================")
+        import traceback
+        traceback.print_exc()
+        print("======================")
     finally:
         save_data(args.target)
         sys.exit()
