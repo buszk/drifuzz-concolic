@@ -201,6 +201,19 @@ class ConcolicResult(object):
                 o.write(copy)
             copy = deepcopy(orig)
 
+    def read_inverted_input(self, outdir):
+        result = {}
+        for EB_branch in self.executed_branches:
+            if EB_branch.flippable:
+                with open(join(outdir, str(EB_branch.count)), 'rb') as i:
+                    result[EB_branch.count] = i.read()
+        return result
+
+    def last_flippable(self, pc):
+        for EB_branch in reversed(self.executed_branches):
+            if EB_branch.flippable and EB_branch.pc == pc:
+                return EB_branch.count
+
     def is_jcc_mod_ok(self):
         """
         docstring

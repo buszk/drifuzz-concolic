@@ -391,25 +391,22 @@ def update_one_branch(model, new_model):
     # print_model(model)
     
 
-def search():
+def search_greedy(itup=None):
     """search for an optimal input
     """
-    print('[search_group]: search')
+    print('[search_group]: search_greedy')
     global br_model
     global cur_input
-    input = b''
-    with open(args.input, "rb") as f:
-        input = f.read()
-    # score, output, converged, path, new_branch = execute(br_model, input)
-    # if not converged:
-    #     print("Empty model does not converge")
-    #     return
-    new_branch = True
-    output = input
-    itup=None
-
-    if cur_input == b'':
-        cur_input = output
+    
+    if itup:
+        score, output, converged, path, model, new_branch, result = itup
+    else:
+        new_branch = True
+        output = b''
+        with open(args.input, "rb") as f:
+            output = f.read()
+        if cur_input == b'':
+            cur_input = output
 
     while new_branch:
         tup = converge(
@@ -418,19 +415,65 @@ def search():
         score, output, converged, path, model, new_branch, result = tup
         itup = (score, output, converged, path, new_branch, result)
         cur_input = output
-        update_one_branch(br_model, model)
+        if new_branch:
+            update_one_branch(br_model, model)
         print("[search_group] current model:")
         print_model(br_model)
-        if not new_branch:
-            tup = execute(deepcopy(br_model), output, 
-                            remaining_run=100,
-                            remaining_others=100)
-            score, output, converged, path, new_branch, result = tup
-            cur_input = output
+        
 
     bytes_to_file(get_out_file(0), output)
     print_model(br_model)
 
+def search_mutation():
+    print('[search_group]: search_mutation')
+    global br_model
+    global cur_input
+    ftup = execute(deepcopy(br_model), cur_input, 
+                    remaining_run=100,
+                    remaining_others=100)
+    score, output, converged, path, new_branch, result = ftup
+    cur_input = output
+    otup = score, output, converged, path, br_model, new_branch, result
+    
+    if new_branch:
+        return otup
+
+    # Collect outputs
+    outputs = result.read_inverted_input(get_out_dir(args.target))
+    
+    # Try mutate model
+    for pc, cond in reversed(br_model.items()):
+        do_mutate = False
+        if cond == Cond.TRUE:
+            new_model = deepcopy(br_model)
+            new_model[pc] = Cond.SWITCH
+            do_mutate = True
+        elif cond == Cond.FALSE:
+            new_model = deepcopy(br_model)
+            new_model[pc] = Cond.SWITCH
+            do_mutate = True
+
+        if do_mutate:
+            last = result.last_flippable(pc)
+            if last in outputs:
+                tup = execute(new_model, outputs[last])
+                score, output, converged, path, new_branch, result = tup
+                if new_branch:
+                    br_model = new_model
+                    cur_input = output
+                    otup = score, output, converged, path, br_model, new_branch, result
+                    print("[Mutation] Found new branch!")
+                    return otup
+    return otup
+
+def search():
+    tup = None
+    while True:
+        search_greedy(itup=tup)
+        tup = search_mutation()
+        # New branch ?
+        if not tup[4]:
+            break
 
 def save_data(target):
     import binascii, json
