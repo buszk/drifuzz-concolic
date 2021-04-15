@@ -13,7 +13,7 @@ qemu_path = join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64")
 expect_prompt = "root@syzkaller:~#"
 cdrom = "ide1-cd0"
 copy_dir = join(BASE_DIR, "copy-dir")
-work = "work"
+work = join(dirname(abspath(__file__)), "work")
 out = "out"
 
 def get_drifuzz_index(target):
@@ -77,7 +77,7 @@ def get_extra_args(target, socket='', prog=''):
         drifuzz_dev_arg += f',socket={socket}'
     if prog != '':
         drifuzz_dev_arg += f',prog={prog}'
-    drifuzz_dev_arg += f',tmpdir=work/{target}'
+    drifuzz_dev_arg += f',tmpdir={join(work, target)}'
     extra_args += ['-device', drifuzz_dev_arg]
 
     extra_args += ['-net', 'user']
