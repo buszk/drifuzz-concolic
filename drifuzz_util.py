@@ -241,7 +241,7 @@ class GlobalModel():
             elif cnt < len(self.dma_idx[key]):
                 return self.dma_idx[key][cnt]
             elif cnt == len(self.dma_idx[key]):
-                self.__check_repeating_key(key, n=1000)
+                # self.__check_repeating_key(key, n=1000)
                 self.dma_idx[key].append(self.next_free_idx)
                 self.next_free_idx += size
                 return self.dma_idx[key][cnt]
@@ -260,6 +260,7 @@ class GlobalModel():
 
     def save_data(self, target):
         if not self.tosave:
+            print("Not saving because of repetitive query")
             return
         print('save_data', target)
         dump = {}

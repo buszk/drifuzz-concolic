@@ -305,7 +305,7 @@ class ConcolicResult(object):
                         new_pcs.append(br.pc)
         if len(pcs) == 0 and count == 0 and pc != 0:
             print(f"target: {pc}")
-            # assert(False and "Got zero score, check drifuzz/path_constraints")
+            assert(False and "Got zero score, check drifuzz/path_constraints")
             return ScoreT(0, 0, 0)
         return ScoreT(len(new_pcs), len(pcs), count)
         
@@ -338,6 +338,7 @@ class ConcolicResult(object):
         v = 0
         idxs = []
         outputs = []
+        keys = []
         for br in self.executed_branches:
             if not br.flippable:
                 continue
@@ -352,6 +353,9 @@ class ConcolicResult(object):
                 v = br.vars
                 idxs.append(br.count)
                 outputs.append(br.get_flipped_input())
+                for k in br.inverted_vals.keys():
+                    keys.append(k)
+                keys.sort()
             elif curr_pc == br.pc and br.hash != h and br.vars == v:
                 # Same bytes different hash
                 idxs.append(br.count)
@@ -360,9 +364,10 @@ class ConcolicResult(object):
                 break
         if len(idxs) > 1:
             print('[result] next switch: ', idxs)
-            return curr_pc, outputs
+            print('Key file offset: ', keys)
+            return curr_pc, outputs, idxs
         else:
-            return 0, 0
+            return 0, [], []
 
     def has_new_branch(self, model):
         for br in self.executed_branches:

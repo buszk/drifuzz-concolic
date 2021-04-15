@@ -12,6 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("target")
 parser.add_argument("input")
 parser.add_argument("--resume", default=False, action="store_true")
+parser.add_argument("--mutate", default=False, action="store_true")
 args = parser.parse_args()
 
 br_model = {} #{br: Cond}
@@ -111,6 +112,12 @@ def next_branch_pc(model, path):
 def print_model(model):
     for key, value in model.items():
         print(f'    {hex(key)}: {value}')
+
+def model_string(model):
+    result = ""
+    for val in model.values():
+        result += str(val)
+    return result
 
 def get_lists_from_model(model, blacklist={}, ignore=0):
     zeros = []
@@ -265,6 +272,14 @@ def execute(model, input, remaining_run=5, remaining_others=10):
     if result == None:
         # FIXME: experimental
         return ScoreT(0, 0, 0), input, False, [], False, result
+    
+    if test_branch in br_blacklist:
+        model[test_branch] = Cond.BOTH
+
+        result = run_concolic_model(args.target, get_out_file(0), model)
+        if result == None:
+            # FIXME: experimental
+            return ScoreT(0, 0, 0), input, False, [], False, result
 
     if result.is_jcc_mod_ok():
         score = result.score_after_first_appearence(test_branch)
@@ -332,6 +347,7 @@ def __converge(model, input, depth, tup=None):
     if tup == None:
         tup = execute(model, input)
     score, output, converged, path, new_branch, result = tup
+    orig_output = output
 
     # Base case
     if (depth == 0):
@@ -341,12 +357,11 @@ def __converge(model, input, depth, tup=None):
     br = next_branch_pc(model, path)
     if br == 0:
         return score, output, converged, path, model, new_branch, result
-    rand_tup = result.score_after_first_appearence(br), output, converged, path, merge_dict(model, {br: Cond.RANDOM}), new_branch, result
     
-    switch_pc, outputs = result.next_switch_to_flip(model)
+    switch_pc, outputs, idxs = result.next_switch_to_flip(model)
     if switch_pc:
         # next branch is a swich
-        tup = converge_switch(merge_dict(br_model, {switch_pc: Cond.SWITCH}), outputs)
+        tup = converge_switch(merge_dict(br_model, {switch_pc: Cond.SWITCH}), outputs, idxs)
         score, output, converged, path, model, new_branch, result = tup
     else:
         tup, eq = best(__converge(merge_dict(model, {br: Cond.TRUE}), output, depth-1),
@@ -355,22 +370,30 @@ def __converge(model, input, depth, tup=None):
         if eq and  occurrence_in_path(br, path) <= 2:
             print(f"[update_model] {hex(br)} Choose TRUE but BOTH are okay")
             model[br] = Cond.TRUE
-        elif best(tup, rand_tup, check_converge=False) == (rand_tup, False) and occurrence_in_path(br, path) > 3:
-            print(f"[update_model] {hex(br)} RANDOM is better than either TRUE/FALSE model")
-            model[br] = Cond.RANDOM
         elif eq and occurrence_in_path(br, path) > 2:
             print(f"[update_model] {hex(br)} Choose BOTH")
             model[br] = Cond.BOTH
+        elif occurrence_in_path(br, path) > 10:
+            # This branch appears a lot. We need to test the random model with original input
+            rand_tup = __converge(merge_dict(model, {br: Cond.RANDOM}), orig_output, 0)
+            if best(tup, rand_tup, check_converge=False) == (rand_tup, False):
+                print(f"[update_model] {hex(br)} RANDOM is better than either TRUE/FALSE model")
+                model[br] = Cond.RANDOM
+            else:
+                print(f"[update_model] {hex(br)} Compared with RANDOM but we choose {model[br]}")
         else:
             print(f"[update_model] {hex(br)} Choose {model[br]}")
     return score, output, converged, path, model, new_branch, result
     
 
-def converge_switch(model, outputs):
+def converge_switch(model, outputs, idxs):
     print('[search_group]: converge_switch')
     assert(len(outputs) > 1)
+    print('[search_group]: running ', idxs[0])
     tup0 = __converge(model, outputs[0], 0)
-    for f in outputs[1:]:
+    for i in range(1, len(outputs)):
+        f = outputs[i]
+        print('[search_group]: running ', idxs[i])
         tup = __converge(model, f, 0)
         tup0, conv = best(tup0, tup)
     return tup0
@@ -400,6 +423,7 @@ def search_greedy(itup=None):
     
     if itup:
         score, output, converged, path, model, new_branch, result = itup
+        itup = score, output, converged, path, new_branch, result
     else:
         new_branch = True
         output = b''
@@ -408,6 +432,8 @@ def search_greedy(itup=None):
         if cur_input == b'':
             cur_input = output
 
+    print("[search_group] current model:")
+    print_model(br_model)
     while new_branch:
         tup = converge(
                 deepcopy(br_model), deepcopy(cur_input),
@@ -470,6 +496,8 @@ def search():
     tup = None
     while True:
         search_greedy(itup=tup)
+        if not args.mutate:
+            break
         tup = search_mutation()
         # New branch ?
         if not tup[4]:
