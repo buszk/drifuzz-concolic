@@ -45,7 +45,9 @@ addrs_config = {
         "eeprom_93cx6": [0xffffffffa0000000, 16384],
     },
     "8139cp": {
-        "8139cp": [0xffffffffa0000000, 69632],
+        "8139cp": [0xffffffffa0018000, 69632],
+        "8139too": [0xffffffffa0008000, 57344],
+        "mii": [0xffffffffa0000000, 28672],
     },
 }
 
