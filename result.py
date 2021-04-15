@@ -168,12 +168,15 @@ class ConcolicResult(object):
         """
         return '\n'.join([str(x) for x in self.executed_branches])
 
-    def _bytearray_set(self, bs, ind, val):
-        if ind < len(bs):
-            bs[ind] = val
-        else:
-            bs.extend(b'\xaa'*(ind-len(bs)))
-            bs.append(val)
+    def _bytearray_set(self, bs, ind, val, ilen):
+        # if ind < len(bs):
+        #     bs[ind] = val
+        # else:
+        #     bs.extend(b'\xaa'*(ind-len(bs)))
+        #     bs.append(val)
+        while ind >= len(bs):
+            bs.extend(bs[:ilen])
+        bs[ind] = val
 
     def generate_inverted_input(self, seed_fn, outdir):
         """
@@ -187,8 +190,9 @@ class ConcolicResult(object):
         # direction 0 or 1. Here, we flip all the jcc branch that is
         # inconsistent with targeted direction.
         # UPDATE
+        ilen = len(orig)
         for k, v in self.mod_value.items():
-            self._bytearray_set(orig, k, v)
+            self._bytearray_set(orig, k, v, ilen)
 
         copy = deepcopy(orig)
         with open(join(outdir, '0'), 'wb') as o:
@@ -196,7 +200,7 @@ class ConcolicResult(object):
 
         for EB_branch in self.executed_branches:
             for k, v in EB_branch.inverted_vals.items():
-                self._bytearray_set(copy, k, v)
+                self._bytearray_set(copy, k, v, ilen)
             with open(join(outdir, str(EB_branch.count)), 'wb') as o:
                 o.write(copy)
             copy = deepcopy(orig)

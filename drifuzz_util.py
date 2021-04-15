@@ -87,14 +87,22 @@ class CommandHandler:
             self.payload_len = len(self.payload)
 
     def get_data_by_size(self, size, ind):
+        # res = b''
+        # if ind >= self.payload_len:
+        #     res = b'\xaa' * size
+        # elif ind + size > self.payload_len:
+        #     res += self.payload[ind:self.payload_len]
+        #     res += b'\xaa' * (ind + size - self.payload_len)
+        # else:
+        #     res += self.payload[ind:ind+size]
+        # return res
+        ii = ind % self.payload_len
         res = b''
-        if ind >= self.payload_len:
-            res = b'\xaa' * size
-        elif ind + size > self.payload_len:
-            res += self.payload[ind:self.payload_len]
-            res += b'\xaa' * (ind + size - self.payload_len)
-        else:
-            res += self.payload[ind:ind+size]
+        while ii + size >self.payload_len:
+            res += self.payload[ii:self.payload_len]
+            size -= (self.payload_len - ii)
+            ii = 0
+        res += self.payload[ii:ii+size]
         return res
     
     def bytes_to_int(self, bs):
