@@ -40,11 +40,6 @@ cd Drifuzz
 ### Create snapshot
 ```
 ./snapshot_helper.py {DRIVER}
-
-# In qemu, login with root
-# Ctrl-A C
-# (qemu) savevm {DRIVER}
-# Ctrl-A D
 ```
 
 ### Troubleshooting
