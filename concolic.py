@@ -32,9 +32,13 @@ parser.add_argument('--nopincpu', default=False, action="store_true")
 parser.add_argument('--ones', nargs='+', type=str, default=[])
 parser.add_argument('--zeros', nargs='+', type=str, default=[])
 parser.add_argument('--others', nargs='+', type=str, default=[])
+parser.add_argument('--outdir', type=str, default="")
+parser.add_argument('--socket', type=str, default="")
 args = parser.parse_args()
 
 outdir=get_out_dir(args.target)
+if args.outdir:
+    outdir = args.outdir
 if not exists(outdir):
     os.mkdir(outdir)
 
@@ -71,17 +75,24 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
 
     ret = 0
     trim_failed = False
-    global_module = GlobalModel()
-    global_module.load_data(args.target)
-    command_handler = CommandHandler(global_module, seed=args.seed)
-    tf = tempfile.NamedTemporaryFile()
-    socket_thread = SocketThread(command_handler, tf.name)
-
-    socket_thread.start()
+    socket_file = ""
+    tf = None
+    socket_thread = None
+    global_module = None
+    if args.socket:
+        socket_file = args.socket
+    else:
+        global_module = GlobalModel()
+        global_module.load_data(args.target)
+        command_handler = CommandHandler(global_module, seed=args.seed)
+        tf = tempfile.NamedTemporaryFile()
+        socket_thread = SocketThread(command_handler, tf.name)
+        socket_thread.start()
+        socket_file = tf.name
 
     time.sleep(.1)
     target = args.target
-    extra_args = get_extra_args(target, socket=tf.name)
+    extra_args = get_extra_args(target, socket=socket_file)
     
 
     extra_args += form_jcc_mod_optiom()
@@ -93,8 +104,9 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
                     get_cmd(target), copy_dir, get_recording_path(target), \
                     expect_prompt, cdrom, extra_args=extra_args)
         except:
-            global_module.save_data(args.target)
-            socket_thread.stop()
+            if socket_thread:
+                global_module.save_data(args.target)
+                socket_thread.stop()
             print('PANDA record failed!')
             return 1
 
@@ -103,7 +115,8 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
         if (mmio_count > 10000 and args.target_branch_pc == 0) or \
             (mmio_count > 200000):
             print(f"There is way too many mmio ({mmio_count}) in the exeuction. Terminate")
-            socket_thread.stop()
+            if socket_thread:
+                socket_thread.stop()
             return 1
 
         # Trim
@@ -153,16 +166,19 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
         p = subprocess.Popen(cmd, env=env)
         p.wait()
         if p.returncode != 0:
-            global_module.save_data(args.target)
-            socket_thread.stop()
+            if socket_thread:
+                global_module.save_data(args.target)
+                socket_thread.stop()
             print(f'PANDA replay failed! exitcode={p.returncode}')
             ret = 1
 
-    tf.close()
-    global_module.save_data(args.target)
-    print("Stopping thread")
-    socket_thread.stop()
-    print("Thread stopped")
+
+    if socket_thread:
+        global_module.save_data(args.target)
+        tf.close()
+        print("Stopping thread")
+        socket_thread.stop()
+        print("Thread stopped")
     return ret
 
 def parse_concolic():
