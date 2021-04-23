@@ -49,6 +49,9 @@ addrs_config = {
         "8139too": [0xffffffffa0008000, 57344],
         "mii": [0xffffffffa0000000, 28672],
     },
+    "atlantic": {
+        "atlantic": [0xffffffffa0000000, 320000],
+        }
 }
 
 addr = 0
