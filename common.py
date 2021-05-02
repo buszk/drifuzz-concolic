@@ -66,7 +66,7 @@ def get_pandalog(target):
 common_extra_args = ['-m', '1G']
 common_extra_args += ['-nographic', '-no-acpi']
 
-def get_extra_args(target, socket='', prog=''):
+def get_extra_args(target, socket='', prog='', tempdir=''):
     extra_args = common_extra_args
     extra_args += ["-kernel", f"{DRIFUZZ}/linux-module-build/arch/x86_64/boot/bzImage"]
     extra_args += ["-append", f"console=ttyS0 nokaslr root=/dev/sda earlyprintk=serial net.ifnames=0 modprobe.blacklist={target}"]
@@ -77,7 +77,11 @@ def get_extra_args(target, socket='', prog=''):
         drifuzz_dev_arg += f',socket={socket}'
     if prog != '':
         drifuzz_dev_arg += f',prog={prog}'
-    drifuzz_dev_arg += f',tmpdir={join(work, target)}'
+    if tempdir == '':
+        drifuzz_dev_arg += f',tmpdir={join(work, target)}'
+    else:
+        drifuzz_dev_arg += f',tmpdir={tempdir}'
+
     extra_args += ['-device', drifuzz_dev_arg]
 
     extra_args += ['-net', 'user']

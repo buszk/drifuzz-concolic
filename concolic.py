@@ -34,6 +34,7 @@ parser.add_argument('--zeros', nargs='+', type=str, default=[])
 parser.add_argument('--others', nargs='+', type=str, default=[])
 parser.add_argument('--outdir', type=str, default="")
 parser.add_argument('--socket', type=str, default="")
+parser.add_argument('--tempdir', default=False, action="store_true")
 args = parser.parse_args()
 
 outdir=get_out_dir(args.target)
@@ -42,8 +43,24 @@ if args.outdir:
 if not exists(outdir):
     os.mkdir(outdir)
 
+tempdirname = ""
+if args.tempdir:
+    td = tempfile.TemporaryDirectory()
+    tempdirname = td.name
+
+def __get_drifuzz_index():
+    if args.tempdir and tempdirname:
+        return join(tempdirname, 'drifuzz_index')
+    else:
+        return get_drifuzz_index(args.target)
+def __get_drifuzz_path_constraints():
+    if args.tempdir and tempdirname:
+        return join(tempdirname, 'drifuzz_path_constraints')
+    else:
+        return get_drifuzz_path_constraints(args.target)
+
 def get_trim_start():
-    with open(get_drifuzz_index(args.target), 'r') as f:
+    with open(__get_drifuzz_index(), 'r') as f:
         for line in f:
             entries = line.split(', ')
             assert(entries[5].split(' ')[0] == 'rr_count:')
@@ -92,9 +109,10 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
 
     time.sleep(.1)
     target = args.target
-    extra_args = get_extra_args(target, socket=socket_file)
-    
-
+    if args.tempdir:
+        extra_args = get_extra_args(target, socket=socket_file, tempdir=tempdirname)
+    else:
+        extra_args = get_extra_args(target, socket=socket_file)
     extra_args += form_jcc_mod_optiom()
 
     # Record
@@ -111,7 +129,7 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
             return 1
 
         # Sanity check?
-        mmio_count = len(open(get_drifuzz_index(args.target)).readlines())
+        mmio_count = len(open(__get_drifuzz_index()).readlines())
         if (mmio_count > 10000 and args.target_branch_pc == 0) or \
             (mmio_count > 200000):
             print(f"There is way too many mmio ({mmio_count}) in the exeuction. Terminate")
@@ -183,8 +201,8 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
 
 def parse_concolic():
     CR_result = ConcolicResult(
-                    get_drifuzz_path_constraints(args.target),
-                    get_drifuzz_index(args.target))
+                    __get_drifuzz_path_constraints(),
+                    __get_drifuzz_index())
     jcc_mod_pc = {}
     for pc in args.ones:
         jcc_mod_pc[int(pc, 16)] = 1
