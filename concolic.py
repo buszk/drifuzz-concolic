@@ -228,8 +228,7 @@ def parse_arguments():
 def main():
     setup_work_dir(target=args.target)
     rc, tm, rp, ps = parse_arguments()
-    if run_concolic(do_record=rc, do_trim=tm, do_replay=rp):
-        return 2
+    run_concolic(do_record=rc, do_trim=tm, do_replay=rp)
     if ps and parse_concolic() == False:
         return 1
     return 0
