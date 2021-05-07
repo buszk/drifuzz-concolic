@@ -4,7 +4,6 @@ import sys
 import subprocess
 import argparse
 import tempfile
-import shutil
 from os.path import join, exists
 from common import *
 from result import *
@@ -36,6 +35,7 @@ parser.add_argument('--others', nargs='+', type=str, default=[])
 parser.add_argument('--outdir', type=str, default="")
 parser.add_argument('--socket', type=str, default="")
 parser.add_argument('--tempdir', default=False, action="store_true")
+parser.add_argument('--id', default="", type=str)
 args = parser.parse_args()
 
 outdir=get_out_dir(args.target)
@@ -59,15 +59,6 @@ def __get_drifuzz_path_constraints():
         return join(tempdirname, 'drifuzz_path_constraints')
     else:
         return get_drifuzz_path_constraints(args.target)
-
-def __get_qcow():
-    if args.tempdir and tempdirname:
-        target_file = join(tempdirname, f'{args.target}.qcow2')
-        shutil.copy2(get_qcow(args.target), target_file)
-        return target_file
-    else:
-        return get_qcow(args.target)
-
 
 def get_trim_start():
     with open(__get_drifuzz_index(), 'r') as f:
@@ -128,7 +119,7 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
     # Record
     if do_record:
         try:
-            create_recording(qemu_path, __get_qcow(), get_snapshot(target), \
+            create_recording(qemu_path, get_qcow(args.target,id=args.id), get_snapshot(target), \
                     get_cmd(target), copy_dir, get_recording_path(target), \
                     expect_prompt, cdrom, extra_args=extra_args)
         except:

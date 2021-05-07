@@ -47,7 +47,9 @@ def get_raw_img():
 def get_snapshot(target):
     return target
 
-def get_qcow(target):
+def get_qcow(target, id=""):
+    if id:
+        return join(work, target, f"{target}_{id}.qcow2")
     return join(work, target, f"{target}.qcow2")
 
 def get_cmd(target):
