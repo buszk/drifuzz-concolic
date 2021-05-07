@@ -4,6 +4,7 @@ import sys
 import subprocess
 import argparse
 import tempfile
+import shutil
 from os.path import join, exists
 from common import *
 from result import *
@@ -58,6 +59,15 @@ def __get_drifuzz_path_constraints():
         return join(tempdirname, 'drifuzz_path_constraints')
     else:
         return get_drifuzz_path_constraints(args.target)
+
+def __get_qcow():
+    if args.tempdir and tempdirname:
+        target_file = join(tempdirname, f'{args.target}.qcow2')
+        shutil.copy2(get_qcow(args.target), target_file)
+        return target_file
+    else:
+        return get_qcow(args.target)
+
 
 def get_trim_start():
     with open(__get_drifuzz_index(), 'r') as f:
@@ -118,7 +128,7 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
     # Record
     if do_record:
         try:
-            create_recording(qemu_path, get_qcow(target), get_snapshot(target), \
+            create_recording(qemu_path, __get_qcow(), get_snapshot(target), \
                     get_cmd(target), copy_dir, get_recording_path(target), \
                     expect_prompt, cdrom, extra_args=extra_args)
         except:
