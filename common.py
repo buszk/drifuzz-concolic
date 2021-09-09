@@ -53,6 +53,8 @@ def get_qcow(target, id=""):
     return join(work, target, f"{target}.qcow2")
 
 def get_cmd(target):
+    if 'drifuzz-test' in target:
+        target = 'drifuzz-test'
     return [join(copy_dir, "prog-init.sh"), target]
 
 def get_recording_path(target):
@@ -69,6 +71,10 @@ common_extra_args = ['-m', '1G']
 common_extra_args += ['-nographic', '-no-acpi']
 
 def get_extra_args(target, socket='', prog='', tempdir=''):
+    orig = target
+    if 'drifuzz-test' in target:
+        target = 'drifuzz-test'
+
     extra_args = common_extra_args
     extra_args += ["-kernel", f"{DRIFUZZ}/linux-module-build/arch/x86_64/boot/bzImage"]
     extra_args += ["-append", f"console=ttyS0 nokaslr root=/dev/sda earlyprintk=serial net.ifnames=0 modprobe.blacklist={target}"]
@@ -80,12 +86,16 @@ def get_extra_args(target, socket='', prog='', tempdir=''):
     if prog != '':
         drifuzz_dev_arg += f',prog={prog}'
     if tempdir == '':
-        drifuzz_dev_arg += f',tmpdir={join(work, target)}'
+        drifuzz_dev_arg += f',tmpdir={join(work, orig)}'
     else:
         drifuzz_dev_arg += f',tmpdir={tempdir}'
 
     extra_args += ['-device', drifuzz_dev_arg]
 
     extra_args += ['-net', 'user']
-    extra_args += ['-net', f'nic,model={target}']
+    if target != 'drifuzz-test':
+        extra_args += ['-net', f'nic,model={target}']
+    else:
+        extra_args += ['-net', f'nic,model={orig}']
+
     return extra_args
