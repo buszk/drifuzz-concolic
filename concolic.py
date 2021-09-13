@@ -4,6 +4,7 @@ import sys
 import subprocess
 import argparse
 import tempfile
+from multiprocessing import Process
 from os.path import join, exists
 from common import *
 from result import *
@@ -119,9 +120,25 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
     # Record
     if do_record:
         try:
-            create_recording(qemu_path, get_qcow(args.target,id=args.id), get_snapshot(target), \
-                    get_cmd(target), copy_dir, get_recording_path(target), \
-                    expect_prompt, cdrom, extra_args=extra_args)
+            p = Process(target = create_recording,
+                            args = (qemu_path, get_qcow(args.target, id=args.id), get_snapshot(target),
+                                get_cmd(target), copy_dir, get_recording_path(target), expect_prompt, cdrom,
+                                ),
+                            kwargs= {'extra_args':extra_args})
+            # create_recording(qemu_path, get_qcow(args.target,id=args.id), get_snapshot(target), \
+            #         get_cmd(target), copy_dir, get_recording_path(target), \
+            #         expect_prompt, cdrom, extra_args=extra_args)
+            p.start()
+            MAX_RECORD_SECONDS = 30
+            for i in range(MAX_RECORD_SECONDS):
+                p.join(timeout=1)
+                # Process finished
+                if p.exitcode != None:
+                    break
+                print(f"[{i}] join failed")
+                if i == MAX_RECORD_SECONDS - 1:
+                    p.kill()
+                    raise TimeoutError()
         except:
             if socket_thread:
                 global_module.save_data(args.target)
