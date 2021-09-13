@@ -10,7 +10,7 @@ parser.add_argument('seq', type=str)
 args = parser.parse_args()
 
 odd_n = (len(args.seq) % 2) == 1
-search_bytes = bytearray()
+search_bytes: bytes = b""
 ind = 0
 for i in range((len(args.seq)+1)//2):
     byte = 0
@@ -21,7 +21,7 @@ for i in range((len(args.seq)+1)//2):
         byte += int(args.seq[ind], 16) * 16
         byte += int(args.seq[ind+1], 16)
         ind += 2
-    search_bytes = bytearray([byte]) + search_bytes
+    search_bytes = bytes([byte]) + search_bytes
 
 
 assert os.path.exists(args.file)

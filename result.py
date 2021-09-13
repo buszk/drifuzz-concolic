@@ -1,5 +1,6 @@
 from os.path import join
 from copy import deepcopy
+from typing import Dict, List
 from mtype import *
 
 # TODO: duplicate code
@@ -16,7 +17,7 @@ class ExecutedBranch(object):
     """
 
     def __init__(self, count: int, pc: int, cond: int, hash: int, vars: int,
-                 sym_vars: [str], inverted_vals: {int: int}):
+                 sym_vars: List[str], inverted_vals: Dict[int, int]):
         self.count = count
         self.pc = pc
         self.cond = cond

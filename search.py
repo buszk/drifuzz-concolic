@@ -8,21 +8,13 @@ from copy import deepcopy
 from collections import namedtuple
 from common import *
 from result import *
+from mtype import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("target")
 parser.add_argument("input")
 args = parser.parse_args()
 
-
-class Cond(IntEnum):
-    FALSE = 0  # false
-    TRUE = 1  # true
-    BOTH = 2  # both
-
-
-BranchT = namedtuple("BranchT", "index pc cond hash vars file")
-ScoreT = namedtuple("ScoreT", "ummio nmmio")
 
 br_model = {}  # {br: Cond}
 br_blacklist = []

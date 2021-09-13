@@ -98,6 +98,7 @@ if (len(tree[addr]) == 1):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     p.wait()
     prevlines = []
+    # pyre-ignore[16]
     for line in p.stdout.readlines():
         line = line.decode('utf-8')
         if str(hex(addr - module_base))[2:] + ':' in line:
