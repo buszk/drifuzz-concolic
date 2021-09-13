@@ -46,6 +46,7 @@ def best(tup1, tup2, check_converge=True):
     print('second model', tup2[0], tup2[2])
     score1, output1, converge1, path1, model1, newbr1, result1 = tup1
     score2, output2, converge2, path2, model2, newbr2, result2 = tup2
+    print('score diff:', comp_score(score1, score2))
     if not newbr1 and not newbr2:
         # Neither has new branches: ignore convergence, return best score
         return (tup1, False) if (comp_score(score1, score2) > 0) else (tup2, False)
@@ -242,6 +243,10 @@ def run_concolic(target, inp, zeros=[], ones=[], others=[], target_br=0):
         if p.returncode == 2:
             return None
         assert(p.returncode == 0 or p.returncode == 1)
+
+    if not os.path.exists(get_drifuzz_path_constraints(args.target)) or \
+        not os.path.exists(get_drifuzz_index(args.target)):
+        return None
 
     result = ConcolicResult(
         get_drifuzz_path_constraints(args.target),
@@ -441,14 +446,11 @@ def search_greedy(itup=None):
         score, output, converged, path, model, new_branch, result = tup
         itup = (score, output, converged, path, new_branch, result)
         cur_input = output
-        if new_branch:
-            update_one_branch(br_model, model)
+        update_one_branch(br_model, model)
         print("[search_group] current model:")
         print_model(br_model)
-        
 
     bytes_to_file(get_out_file(0), output)
-    print_model(br_model)
 
 def search_mutation():
     print('[search_group]: search_mutation')
