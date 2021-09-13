@@ -8,6 +8,7 @@ from os.path import join, dirname, abspath
 BASE_DIR = dirname(abspath(__file__))
 DRIFUZZ = abspath(join(BASE_DIR, "..", "Drifuzz"))
 PANDA_SRC = abspath(join(BASE_DIR, "..", "panda"))
+LINUX_BUILD = join(DRIFUZZ, "linux-module-build")
 PANDA_BUILD = join(DRIFUZZ, "panda-build")
 qemu_path = join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64")
 
@@ -38,11 +39,9 @@ def get_search_save(target):
     return join(work, target, "search.sav")
 
 
-def create_if_not_exist(d): j
-
-
-if not os.path.exists(d):
-    os.makedirs(d)
+def create_if_not_exist(d):
+    if not os.path.exists(d):
+        os.makedirs(d)
 
 
 def setup_work_dir(target=""):

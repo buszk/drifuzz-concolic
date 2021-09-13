@@ -3,6 +3,7 @@ import sys
 import argparse
 import subprocess
 import intervaltree
+from common import LINUX_BUILD
 from os.path import expanduser, join, isfile
 
 parser = argparse.ArgumentParser()
@@ -73,16 +74,13 @@ tree = intervaltree.IntervalTree()
 for mod, addrs in addrs_config[args.target].items():
     tree.addi(addrs[0], addrs[0] + addrs[1], mod)
 
-home = expanduser("~")
-linux_build = join(home, "Workspace", "git", "Drifuzz", "linux-module-build")
-
 if (len(tree[addr]) == 1):
     module_name = list(tree[addr])[0][2]
     module_base = list(tree[addr])[0][0]
     print(f"module_name: {module_name}")
     print(f"module_base: {hex(module_base)}")
 
-    p = subprocess.Popen(['find', linux_build, '-iname', f'{module_name}.ko'],
+    p = subprocess.Popen(['find', LINUX_BUILD, '-iname', f'{module_name}.ko'],
                          stdout=subprocess.PIPE)
     module_path = str(p.communicate()[0], encoding='utf-8')[:-1]
     print(f"module_path: {module_path}")
@@ -107,11 +105,11 @@ if (len(tree[addr]) == 1):
         prevlines.append(line)
 else:
     cmd = ['addr2line', '-f', '-e',
-           join(linux_build, 'vmlinux'), '-a', f'{hex(addr)}']
+           join(LINUX_BUILD, 'vmlinux'), '-a', f'{hex(addr)}']
     print(' '.join(cmd))
     p = subprocess.Popen(cmd)
     p.wait()
-    cmd = ['objdump', '-Mintel', '-d', join(linux_build, 'vmlinux'),
+    cmd = ['objdump', '-Mintel', '-d', join(LINUX_BUILD, 'vmlinux'),
            f'--start-addr={hex(addr-0x10)}',
            f'--stop-addr={hex(addr+0x10)}']
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
