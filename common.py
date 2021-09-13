@@ -18,6 +18,10 @@ work = join(dirname(abspath(__file__)), "work")
 out = "out"
 
 
+def is_test_target(target):
+    return 'drifuzz-test' in target
+
+
 def get_drifuzz_index(target):
     return join(work, target, "drifuzz_index")
 
@@ -65,8 +69,9 @@ def get_qcow(target, id=""):
 
 
 def get_cmd(target):
-    if 'drifuzz-test' in target:
+    if is_test_target(target):
         target = 'drifuzz-test'
+        return [join(copy_dir, "prog-modprobe.sh"), target]
     return [join(copy_dir, "prog-init.sh"), target]
 
 
@@ -88,7 +93,7 @@ common_extra_args += ['-nographic', '-no-acpi']
 
 def get_extra_args(target, socket='', prog='', tempdir=''):
     orig = target
-    if 'drifuzz-test' in target:
+    if is_test_target(target):
         target = 'drifuzz-test'
 
     extra_args = common_extra_args
