@@ -3,7 +3,7 @@ import sys
 import argparse
 import subprocess
 import intervaltree
-from os.path import expanduser,join,isfile
+from os.path import expanduser, join, isfile
 
 parser = argparse.ArgumentParser()
 parser.add_argument('target')
@@ -53,7 +53,7 @@ addrs_config = {
         "atlantic": [0xffffffffa0000000, 320000],
     },
     "snic": {
-        "snic": [0xffffffffa0000000, 262144], 
+        "snic": [0xffffffffa0000000, 262144],
     },
     "mwifiex_pcie": {
         "mwifiex_pcie": [0xffffffffa00e0000, 118784],
@@ -82,8 +82,8 @@ if (len(tree[addr]) == 1):
     print(f"module_name: {module_name}")
     print(f"module_base: {hex(module_base)}")
 
-    p = subprocess.Popen(['find', linux_build, '-iname', f'{module_name}.ko'], 
-                            stdout=subprocess.PIPE)
+    p = subprocess.Popen(['find', linux_build, '-iname', f'{module_name}.ko'],
+                         stdout=subprocess.PIPE)
     module_path = str(p.communicate()[0], encoding='utf-8')[:-1]
     print(f"module_path: {module_path}")
 
@@ -93,8 +93,8 @@ if (len(tree[addr]) == 1):
     p = subprocess.Popen(cmd)
     p.wait()
     cmd = ['objdump', '-Mintel', '-d', module_path,
-            f'--start-addr={hex(addr - module_base-0x10)}',
-            f'--stop-addr={hex(addr - module_base+0x10)}']
+           f'--start-addr={hex(addr - module_base-0x10)}',
+           f'--stop-addr={hex(addr - module_base+0x10)}']
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     p.wait()
     prevlines = []
@@ -105,13 +105,14 @@ if (len(tree[addr]) == 1):
             print(line, end='')
         prevlines.append(line)
 else:
-    cmd = ['addr2line', '-f', '-e', join(linux_build, 'vmlinux'), '-a', f'{hex(addr)}']
+    cmd = ['addr2line', '-f', '-e',
+           join(linux_build, 'vmlinux'), '-a', f'{hex(addr)}']
     print(' '.join(cmd))
     p = subprocess.Popen(cmd)
     p.wait()
     cmd = ['objdump', '-Mintel', '-d', join(linux_build, 'vmlinux'),
-            f'--start-addr={hex(addr-0x10)}',
-            f'--stop-addr={hex(addr+0x10)}']
+           f'--start-addr={hex(addr-0x10)}',
+           f'--stop-addr={hex(addr+0x10)}']
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     p.wait()
     prevlines = []

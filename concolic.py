@@ -1,4 +1,7 @@
 #!/usr/bin/env -S python3 -u
+import signal
+import traceback
+import pdb
 import os
 import sys
 import subprocess
@@ -9,15 +12,17 @@ from os.path import join, exists
 from common import *
 from result import *
 from drifuzz_util import *
-sys.path.append(join(PANDA_SRC, "panda/scripts"))
-from run_guest import create_recording
+sys.path.append(join(PANDA_SRC, "panda/scripts"))  # nopep8
+from run_guest import create_recording  # nopep8
 
-import pdb, traceback, signal
+
 def handler(signum, frame):
     for th in threading.enumerate():
         print(th)
         traceback.print_stack(sys._current_frames()[th.ident])
         print()
+
+
 signal.signal(signal.SIGUSR1, handler)
 
 parser = argparse.ArgumentParser()
@@ -39,7 +44,7 @@ parser.add_argument('--tempdir', default=False, action="store_true")
 parser.add_argument('--id', default="", type=str)
 args = parser.parse_args()
 
-outdir=get_out_dir(args.target)
+outdir = get_out_dir(args.target)
 if args.outdir:
     outdir = args.outdir
 if not exists(outdir):
@@ -50,16 +55,20 @@ if args.tempdir:
     td = tempfile.TemporaryDirectory()
     tempdirname = td.name
 
+
 def __get_drifuzz_index():
     if args.tempdir and tempdirname:
         return join(tempdirname, 'drifuzz_index')
     else:
         return get_drifuzz_index(args.target)
+
+
 def __get_drifuzz_path_constraints():
     if args.tempdir and tempdirname:
         return join(tempdirname, 'drifuzz_path_constraints')
     else:
         return get_drifuzz_path_constraints(args.target)
+
 
 def get_trim_start():
     with open(__get_drifuzz_index(), 'r') as f:
@@ -69,6 +78,7 @@ def get_trim_start():
             rr_count = int(entries[5].split(' ')[1], 16)
             return rr_count
     return 0
+
 
 def form_jcc_mod_optiom():
     jcc_mod_str = 'jcc_mod:'
@@ -90,7 +100,8 @@ def form_jcc_mod_optiom():
         return ['-panda', jcc_mod_str]
     return []
 
-def run_concolic(do_record=True, do_trim= True, do_replay=True):
+
+def run_concolic(do_record=True, do_trim=True, do_replay=True):
 
     ret = 0
     trim_failed = False
@@ -112,7 +123,8 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
     time.sleep(.1)
     target = args.target
     if args.tempdir:
-        extra_args = get_extra_args(target, socket=socket_file, tempdir=tempdirname)
+        extra_args = get_extra_args(
+            target, socket=socket_file, tempdir=tempdirname)
     else:
         extra_args = get_extra_args(target, socket=socket_file)
     extra_args += form_jcc_mod_optiom()
@@ -121,11 +133,12 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
     # Record
     if do_record:
         try:
-            p = Process(target = create_recording,
-                            args = (qemu_path, get_qcow(args.target, id=args.id), get_snapshot(target),
-                                get_cmd(target), copy_dir, get_recording_path(target), expect_prompt, cdrom,
-                                ),
-                            kwargs= {'extra_args':extra_args})
+            p = Process(target=create_recording,
+                        args=(qemu_path, get_qcow(args.target, id=args.id), get_snapshot(target),
+                              get_cmd(target), copy_dir, get_recording_path(
+                                  target), expect_prompt, cdrom,
+                              ),
+                        kwargs={'extra_args': extra_args})
             # create_recording(qemu_path, get_qcow(args.target,id=args.id), get_snapshot(target), \
             #         get_cmd(target), copy_dir, get_recording_path(target), \
             #         expect_prompt, cdrom, extra_args=extra_args)
@@ -150,18 +163,19 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
         # Sanity check?
         mmio_count = len(open(__get_drifuzz_index()).readlines())
         if (mmio_count > 10000 and args.target_branch_pc == 0) or \
-            (mmio_count > 200000):
-            print(f"There is way too many mmio ({mmio_count}) in the exeuction. Terminate")
+                (mmio_count > 200000):
+            print(
+                f"There is way too many mmio ({mmio_count}) in the exeuction. Terminate")
             if socket_thread:
                 socket_thread.stop()
             return 1
 
         # Trim
         if do_trim:
-            cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
-                "-replay", get_recording_path(target),
-                "-panda", f"scissors:name={get_reduced_recording_path(target)},start={get_trim_start()-1000}",
-                "-pandalog", get_pandalog(target)]
+            cmd = [join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
+                   "-replay", get_recording_path(target),
+                   "-panda", f"scissors:name={get_reduced_recording_path(target)},start={get_trim_start()-1000}",
+                   "-pandalog", get_pandalog(target)]
             cmd += extra_args
             p = subprocess.Popen(cmd)
             p.wait()
@@ -175,22 +189,23 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
                 trim_failed = False
         else:
             trim_failed = True
-            
+
     # Replay
     if do_replay:
-        env={
-            "LD_PRELOAD":"/home/zekun/bpf/install/lib/libz3.so",
+        env = {
+            "LD_PRELOAD": "/home/zekun/bpf/install/lib/libz3.so",
             **os.environ
         }
-        record_path = get_recording_path(target) if trim_failed else get_reduced_recording_path(target)
-        cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
-            "-replay", record_path,
-            "-panda", f"tainted_drifuzz:target_branch_pc={args.target_branch_pc},after_target_limit={args.after_target_limit}",
-            "-panda", "tainted_branch",
-            #"-d", "in_asm",
-            #"-d", "in_asm,op,llvm_ir",
-            #"-dfilter", "0xffffffffa0128000..0xffffffffffffffff",
-            "-pandalog", get_pandalog(target)]
+        record_path = get_recording_path(
+            target) if trim_failed else get_reduced_recording_path(target)
+        cmd = [join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
+               "-replay", record_path,
+               "-panda", f"tainted_drifuzz:target_branch_pc={args.target_branch_pc},after_target_limit={args.after_target_limit}",
+               "-panda", "tainted_branch",
+               #"-d", "in_asm",
+               #"-d", "in_asm,op,llvm_ir",
+               #"-dfilter", "0xffffffffa0128000..0xffffffffffffffff",
+               "-pandalog", get_pandalog(target)]
         cmd += extra_args
 
         if args.pincpu:
@@ -211,7 +226,6 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
             print(f'PANDA replay failed! exitcode={p.returncode}')
             ret = 1
 
-
     if socket_thread:
         global_module.save_data(args.target)
         tf.close()
@@ -220,10 +234,11 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
         print("Thread stopped")
     return ret
 
+
 def parse_concolic():
     CR_result = ConcolicResult(
-                    __get_drifuzz_path_constraints(),
-                    __get_drifuzz_index())
+        __get_drifuzz_path_constraints(),
+        __get_drifuzz_index())
     jcc_mod_pc = {}
     for pc in args.ones:
         jcc_mod_pc[int(pc, 16)] = 1
@@ -234,6 +249,7 @@ def parse_concolic():
     jcc_ok = CR_result.is_jcc_mod_ok()
     CR_result.generate_inverted_input(args.seed, outdir)
     return jcc_ok
+
 
 def parse_arguments():
     # record, trim, replay, parse
@@ -246,6 +262,7 @@ def parse_arguments():
     else:
         return True, True, True, True
 
+
 def main():
     setup_work_dir(target=args.target)
     rc, tm, rp, ps = parse_arguments()
@@ -256,6 +273,7 @@ def main():
     if ps and parse_concolic() == False:
         return 1
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -14,27 +14,33 @@ parser.add_argument("target")
 parser.add_argument("input")
 args = parser.parse_args()
 
+
 class Cond(IntEnum):
-    FALSE = 0 #false
-    TRUE = 1 #true
-    BOTH = 2 #both
+    FALSE = 0  # false
+    TRUE = 1  # true
+    BOTH = 2  # both
+
 
 BranchT = namedtuple("BranchT", "index pc cond hash vars file")
 ScoreT = namedtuple("ScoreT", "ummio nmmio")
 
-br_model = {} #{br: Cond}
+br_model = {}  # {br: Cond}
 br_blacklist = []
+
 
 def get_out_file(n):
     return os.path.join(get_out_dir(args.target), str(n))
 
+
 def get_concolic_log():
     return os.path.join('work', args.target, 'concolic.log')
 
+
 def comp_score(score1, score2):
-    s1 = score1.ummio *1000 - score1.nmmio
-    s2 = score2.ummio *1000 - score2.nmmio
+    s1 = score1.ummio * 1000 - score1.nmmio
+    s2 = score2.ummio * 1000 - score2.nmmio
     return s1 - s2
+
 
 def best(tup1, tup2):
     """ Choose between two converge test result
@@ -47,7 +53,8 @@ def best(tup1, tup2):
         same (bool): if both sides are the same
 
     """
-    print('[search]: best', 'true model:', tup1[0], tup1[2], 'false model', tup2[0], tup2[2])
+    print('[search]: best', 'true model:', tup1[0],
+          tup1[2], 'false model', tup2[0], tup2[2])
     score1, output1, converge1, path1, model1, newbr1 = tup1
     score2, output2, converge2, path2, model2, newbr2 = tup2
     if not newbr1 and not newbr2:
@@ -69,27 +76,33 @@ def best(tup1, tup2):
         # Both converge with different scores
         return (tup1, False) if (comp_score(score1, score2) > 0) else (tup2, False)
 
+
 def file_to_bytes(fname):
     with open(fname, 'rb') as f:
         return f.read()
+
 
 def bytes_to_file(fname, bs):
     with open(fname, 'wb') as f:
         return f.write(bs)
 
+
 def remove_if_exits(fname):
     if os.path.exists(fname):
         os.remove(fname)
+
 
 def merge_dict(d1, d2):
     copy = deepcopy(d1)
     copy.update(d2)
     return copy
 
+
 def last_branch_in_model(model):
     for key, _ in model.items():
         return key
     return 0
+
 
 def pc_in_path(pc, path):
     print(f'[search]: pc_in_path {hex(pc)}')
@@ -98,12 +111,14 @@ def pc_in_path(pc, path):
             return True
     return False
 
+
 def next_branch_pc(model, path):
     for br in path:
         if br.pc in model:
             continue
         return br.pc
     return 0
+
 
 def next_switch(model, path):
     pc = 0
@@ -132,10 +147,12 @@ def next_switch(model, path):
         return pc, outputs
     else:
         return 0, 0
-    
+
+
 def print_model(model):
     for key, value in model.items():
         print(f'    {hex(key)}: {value}')
+
 
 def run_concolic(target, inp, zeros=[], ones=[]):
     """Run concolic script
@@ -152,7 +169,7 @@ def run_concolic(target, inp, zeros=[], ones=[]):
     remove_if_exits(get_drifuzz_path_constraints(args.target))
 
     print(f'Executing input {inp}')
-    
+
     extra_args = []
     if len(zeros) > 0:
         extra_args += ['--zeros']
@@ -172,6 +189,7 @@ def run_concolic(target, inp, zeros=[], ones=[]):
         get_drifuzz_index(args.target),
         outdir=get_out_dir(args.target))
     return result
+
 
 def execute(model, input):
     """Execute model given initial input
@@ -198,7 +216,7 @@ def execute(model, input):
     remaining_run = 5
     remaining_others = 10
     while remaining_run > 0 and remaining_others > 0:
-        
+
         if (curr_count < 0):
             break
         result = run_concolic(args.target, get_out_file(curr_count))
@@ -214,10 +232,10 @@ def execute(model, input):
             remaining_others = 10
         else:
             remaining_others -= 1
-    
+
     if remaining_run == 0:
         return score, file_to_bytes(get_out_file(0)), False, path, new_branch
-    
+
     return score, file_to_bytes(get_out_file(0)), True, path, new_branch
 
 
@@ -238,6 +256,7 @@ def converge(model, input):
     print('[search]: converge: model:')
     return __converge(model, input, 1)
 
+
 def __converge(model, input, depth):
     print('[search]: __converge')
     print_model(model)
@@ -250,16 +269,17 @@ def __converge(model, input, depth):
         return score, output, converged, path, model, new_branch
 
     if switch_pc:
-        tup = converge_switch(merge_dict({switch_pc: Cond.BOTH}, br_model), outputs)
+        tup = converge_switch(merge_dict(
+            {switch_pc: Cond.BOTH}, br_model), outputs)
         score, output, converged, path, model, new_branch = tup
     else:
         tup, eq = best(__converge(merge_dict({br: Cond.TRUE}, model), output, depth-1),
-                        __converge(merge_dict({br: Cond.FALSE}, model), output, depth-1))
+                       __converge(merge_dict({br: Cond.FALSE}, model), output, depth-1))
         score, output, converged, path, model, new_branch = tup
         if eq:
             model[br] = Cond.BOTH
     return score, output, converged, path, model, new_branch
-    
+
 
 def converge_switch(model, outputs):
     print('[search]: converge_switch')
@@ -269,6 +289,7 @@ def converge_switch(model, outputs):
         tup = __converge(model, f, 0)
         tup0, conv = best(tup0, tup)
     return tup0
+
 
 def update_one_branch(model, new_model):
     print('[search]: update_one_branch')
@@ -284,7 +305,7 @@ def update_one_branch(model, new_model):
         else:
             break
     model[last] = new_model[last]
-    
+
 
 def search():
     """search for an optimal input

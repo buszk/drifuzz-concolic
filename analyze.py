@@ -1,13 +1,14 @@
 #!/usr/bin/env -S python3 -u
-import os, sys
+import argparse
+from plog_reader import PLogReader
+from run_guest import create_recording
+import os
+import sys
 import subprocess
 from tempdir import TempDir
 from os.path import join, dirname, abspath
 from common import *
 sys.path.append(join(PANDA_SRC, "panda/scripts"))
-from run_guest import create_recording
-from plog_reader import PLogReader
-import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--record', default=False, action="store_true")
@@ -31,20 +32,20 @@ if not (args.record or args.replay or args.process or args.all):
     sys.exit(1)
 
 if args.record or args.all:
-    create_recording(qemu_path, get_qcow(target), get_snapshot(target), \
-            get_cmd(target), copy_dir, get_recording_path(target), \
-            expect_prompt, cdrom, extra_args=extra_args)
+    create_recording(qemu_path, get_qcow(target), get_snapshot(target),
+                     get_cmd(target), copy_dir, get_recording_path(target),
+                     expect_prompt, cdrom, extra_args=extra_args)
 
 if args.replay or args.all:
-    env={
-        "LD_PRELOAD":"/home/zekun/bpf/install/lib/libz3.so",
+    env = {
+        "LD_PRELOAD": "/home/zekun/bpf/install/lib/libz3.so",
         **os.environ
     }
-    cmd=[join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
-        "-replay", target,
-        "-panda", "tainted_drifuzz",
-        "-panda", "tainted_branch",
-        "-pandalog", get_pandalog(target)]
+    cmd = [join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
+           "-replay", target,
+           "-panda", "tainted_drifuzz",
+           "-panda", "tainted_branch",
+           "-pandalog", get_pandalog(target)]
     cmd += extra_args
     if args.gdbreplay:
         cmd = ["gdb", "-ex", "r", "--args"] + cmd
@@ -62,13 +63,12 @@ if args.process or args.all:
                     tbms.append(m)
             if m.tainted_instr:
                 pass
-                #print(hex(m.pc))
-                #print(hex(m.instr))
-                #print(type(m))
-
+                # print(hex(m.pc))
+                # print(hex(m.instr))
+                # print(type(m))
 
     for tbm in tbms:
         print(f"target: {target}")
         print(f"pc: {hex(tbm.pc)},"
-                f"ptr: {hex(tbm.tainted_branch.taint_query[0].ptr)}, " +
-                f"tcn: {tbm.tainted_branch.taint_query[0].tcn}")
+              f"ptr: {hex(tbm.tainted_branch.taint_query[0].ptr)}, " +
+              f"tcn: {tbm.tainted_branch.taint_query[0].tcn}")

@@ -33,5 +33,3 @@ with open(args.file, 'rb') as f:
         if res == -1:
             break
         print(hex(res))
-
-

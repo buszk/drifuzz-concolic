@@ -15,20 +15,24 @@ parser.add_argument("--resume", default=False, action="store_true")
 parser.add_argument("--mutate", default=False, action="store_true")
 args = parser.parse_args()
 
-br_model = {} #{br: Cond}
+br_model = {}  # {br: Cond}
 br_blacklist = []
 cur_input = b''
+
 
 def get_out_file(n):
     return os.path.join(get_out_dir(args.target), str(n))
 
+
 def get_concolic_log():
     return os.path.join('work', args.target, 'concolic.log')
 
+
 def comp_score(score1, score2):
-    s1 = score1.new *5000 + score1.ummio *1000 - score1.nmmio
-    s2 = score2.new *5000 + score2.ummio *1000 - score2.nmmio
+    s1 = score1.new * 5000 + score1.ummio * 1000 - score1.nmmio
+    s2 = score2.new * 5000 + score2.ummio * 1000 - score2.nmmio
     return s1 - s2
+
 
 def best(tup1, tup2, check_converge=True):
     """ Choose between two converge test result
@@ -66,28 +70,34 @@ def best(tup1, tup2, check_converge=True):
         # Both converge with different scores
         return (tup1, False) if (comp_score(score1, score2) > 0) else (tup2, False)
 
+
 def file_to_bytes(fname):
     with open(fname, 'rb') as f:
         return f.read()
+
 
 def bytes_to_file(fname, bs):
     with open(fname, 'wb') as f:
         return f.write(bs)
 
+
 def remove_if_exits(fname):
     if os.path.exists(fname):
         os.remove(fname)
+
 
 def merge_dict(d1, d2):
     copy = deepcopy(d1)
     copy.update(d2)
     return copy
 
+
 def last_branch_in_model(model):
     last = 0
     for key, _ in model.items():
         last = key
     return last
+
 
 def pc_in_path(pc, path):
     print(f'[search_group]: pc_in_path {hex(pc)}')
@@ -96,12 +106,14 @@ def pc_in_path(pc, path):
             return True
     return False
 
+
 def occurrence_in_path(pc, path):
     count = 0
     for br in path:
         if pc == br.pc:
             count += 1
     return count
+
 
 def next_branch_pc(model, path):
     for br in path:
@@ -110,9 +122,11 @@ def next_branch_pc(model, path):
         return br.pc
     return 0
 
+
 def print_model(model):
     for key, value in model.items():
         print(f'    {hex(key)}: {value}')
+
 
 def model_string(model):
     result = ""
@@ -120,15 +134,16 @@ def model_string(model):
         result += str(val)
     return result
 
+
 def get_lists_from_model(model, blacklist={}, ignore=0):
     zeros = []
     ones = []
     others = []
     jcc_pcs = {}
     for k, v in model.items():
-        if  k not in blacklist and \
-            k not in br_blacklist and \
-            k != ignore:
+        if k not in blacklist and \
+                k not in br_blacklist and \
+                k != ignore:
             if v == Cond.FALSE:
                 zeros.append(k)
                 jcc_pcs[k] = False
@@ -141,14 +156,16 @@ def get_lists_from_model(model, blacklist={}, ignore=0):
             others.append(k)
     return zeros, ones, others, jcc_pcs
 
+
 def run_concolic_model(target, inp, model):
     global br_blacklist
     test_branch = last_branch_in_model(model)
     zeros, ones, others, jcc_pcs = get_lists_from_model(model)
-    
+
     # First run
     print("First concolic model run")
-    result:ConcolicResult = run_concolic(target, inp, zeros=zeros, ones=ones, others=others, target_br=test_branch)
+    result: ConcolicResult = run_concolic(
+        target, inp, zeros=zeros, ones=ones, others=others, target_br=test_branch)
     if result == None:
         return None
     result.set_jcc_mod(jcc_pcs)
@@ -163,7 +180,8 @@ def run_concolic_model(target, inp, model):
     print("Repeat with updated output")
     blacklist = result.get_conflict_pcs()
     zeros, ones, others, jcc_pcs = get_lists_from_model(model)
-    result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, others=others, target_br=test_branch)
+    result: ConcolicResult = run_concolic(target, get_out_file(
+        0), zeros=zeros, ones=ones, others=others, target_br=test_branch)
     if result == None:
         return None
     result.set_jcc_mod(jcc_pcs)
@@ -174,8 +192,10 @@ def run_concolic_model(target, inp, model):
     # Remove target and try
     print("Remove target and fall back")
     blacklist = result.get_conflict_pcs()
-    zeros, ones, others, jcc_pcs = get_lists_from_model(model, blacklist=blacklist, ignore=test_branch)
-    result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, others=others, target_br=test_branch)
+    zeros, ones, others, jcc_pcs = get_lists_from_model(
+        model, blacklist=blacklist, ignore=test_branch)
+    result: ConcolicResult = run_concolic(target, get_out_file(
+        0), zeros=zeros, ones=ones, others=others, target_br=test_branch)
     if result == None:
         return None
     result.set_jcc_mod(jcc_pcs)
@@ -200,6 +220,7 @@ def run_concolic_model(target, inp, model):
         # Weird but fall through
         # return None
 
+
 def run_concolic(target, inp, zeros=[], ones=[], others=[], target_br=0):
     """Run concolic script
     Args:
@@ -217,7 +238,7 @@ def run_concolic(target, inp, zeros=[], ones=[], others=[], target_br=0):
     remove_if_exits(get_drifuzz_path_constraints(args.target))
 
     print(f'Executing input {inp}')
-    
+
     extra_args = []
     if len(zeros) > 0:
         extra_args += ['--zeros']
@@ -245,7 +266,7 @@ def run_concolic(target, inp, zeros=[], ones=[], others=[], target_br=0):
         assert(p.returncode == 0 or p.returncode == 1)
 
     if not os.path.exists(get_drifuzz_path_constraints(args.target)) or \
-        not os.path.exists(get_drifuzz_index(args.target)):
+            not os.path.exists(get_drifuzz_index(args.target)):
         return None
 
     result = ConcolicResult(
@@ -253,6 +274,7 @@ def run_concolic(target, inp, zeros=[], ones=[], others=[], target_br=0):
         get_drifuzz_index(args.target),
         outdir=get_out_dir(args.target))
     return result
+
 
 def execute(model, input, remaining_run=5, remaining_others=10):
     """Execute model given initial input
@@ -277,7 +299,7 @@ def execute(model, input, remaining_run=5, remaining_others=10):
     if result == None:
         # FIXME: experimental
         return ScoreT(0, 0, 0), input, False, [], False, result
-    
+
     if test_branch in br_blacklist:
         model[test_branch] = Cond.BOTH
 
@@ -293,18 +315,19 @@ def execute(model, input, remaining_run=5, remaining_others=10):
         curr_count, br_pc = result.next_branch_to_flip(model)
         if curr_count < 0:
             return score, file_to_bytes(get_out_file(0)), True, path, new_branch, result
-    
+
     score = result.score_after_first_appearence(test_branch)
     path = result.get_path()
     new_branch = result.has_new_branch(model)
     curr_count, br_pc = result.next_branch_to_flip(model)
     print(f"br_pc {hex(br_pc)}, last_branch_in_model {hex(test_branch)}")
     while remaining_run > 0 and remaining_others > 0:
-        
+
         if (curr_count < 0):
             break
         # run_concolic(args.target, get_out_file(curr_count))
-        result = run_concolic_model(args.target, get_out_file(curr_count), model)
+        result = run_concolic_model(
+            args.target, get_out_file(curr_count), model)
         if result == None:
             # FIXME: experimental
             return ScoreT(0, 0, 0), input, False, [], False, result
@@ -320,10 +343,10 @@ def execute(model, input, remaining_run=5, remaining_others=10):
             remaining_others = 10
         else:
             remaining_others -= 1
-    
+
     if remaining_run == 0:
         return score, file_to_bytes(get_out_file(0)), False, path, new_branch, result
-    
+
     return score, file_to_bytes(get_out_file(0)), True, path, new_branch, result
 
 
@@ -345,6 +368,7 @@ def converge(model, input, tup=None):
     print('[search_group]: converge: model:')
     return __converge(model, input, 1, tup=tup)
 
+
 def __converge(model, input, depth, tup=None):
     print('[search_group]: __converge')
     if depth == 0:
@@ -357,22 +381,23 @@ def __converge(model, input, depth, tup=None):
     # Base case
     if (depth == 0):
         return score, output, converged, path, model, new_branch, result
-    
+
     # first branch not in model
     br = next_branch_pc(model, path)
     if br == 0:
         return score, output, converged, path, model, new_branch, result
-    
+
     switch_pc, outputs, idxs = result.next_switch_to_flip(model)
     if switch_pc:
         # next branch is a swich
-        tup = converge_switch(merge_dict(br_model, {switch_pc: Cond.SWITCH}), outputs, idxs)
+        tup = converge_switch(merge_dict(
+            br_model, {switch_pc: Cond.SWITCH}), outputs, idxs)
         score, output, converged, path, model, new_branch, result = tup
     else:
         tup, eq = best(__converge(merge_dict(model, {br: Cond.TRUE}), output, depth-1),
-                        __converge(merge_dict(model, {br: Cond.FALSE}), output, depth-1))
+                       __converge(merge_dict(model, {br: Cond.FALSE}), output, depth-1))
         score, output, converged, path, model, new_branch, result = tup
-        if eq and  occurrence_in_path(br, path) <= 2:
+        if eq and occurrence_in_path(br, path) <= 2:
             print(f"[update_model] {hex(br)} Choose TRUE but BOTH are okay")
             model[br] = Cond.TRUE
         elif eq and occurrence_in_path(br, path) > 2:
@@ -380,16 +405,19 @@ def __converge(model, input, depth, tup=None):
             model[br] = Cond.BOTH
         elif occurrence_in_path(br, path) > 10:
             # This branch appears a lot. We need to test the random model with original input
-            rand_tup = __converge(merge_dict(model, {br: Cond.RANDOM}), orig_output, 0)
+            rand_tup = __converge(merge_dict(
+                model, {br: Cond.RANDOM}), orig_output, 0)
             if best(tup, rand_tup, check_converge=False) == (rand_tup, False):
-                print(f"[update_model] {hex(br)} RANDOM is better than either TRUE/FALSE model")
+                print(
+                    f"[update_model] {hex(br)} RANDOM is better than either TRUE/FALSE model")
                 model[br] = Cond.RANDOM
             else:
-                print(f"[update_model] {hex(br)} Compared with RANDOM but we choose {model[br]}")
+                print(
+                    f"[update_model] {hex(br)} Compared with RANDOM but we choose {model[br]}")
         else:
             print(f"[update_model] {hex(br)} Choose {model[br]}")
     return score, output, converged, path, model, new_branch, result
-    
+
 
 def converge_switch(model, outputs, idxs):
     print('[search_group]: converge_switch')
@@ -402,6 +430,7 @@ def converge_switch(model, outputs, idxs):
         tup = __converge(model, f, 0)
         tup0, conv = best(tup0, tup)
     return tup0
+
 
 def update_one_branch(model, new_model):
     print('[search_group]: update_one_branch')
@@ -417,7 +446,7 @@ def update_one_branch(model, new_model):
     model[last] = new_model[last]
     # print('new_model:')
     # print_model(model)
-    
+
 
 def search_greedy(itup=None):
     """search for an optimal input
@@ -425,7 +454,7 @@ def search_greedy(itup=None):
     print('[search_group]: search_greedy')
     global br_model
     global cur_input
-    
+
     if itup:
         score, output, converged, path, model, new_branch, result = itup
         itup = score, output, converged, path, new_branch, result
@@ -441,8 +470,8 @@ def search_greedy(itup=None):
     print_model(br_model)
     while new_branch:
         tup = converge(
-                deepcopy(br_model), deepcopy(cur_input),
-                tup=itup)
+            deepcopy(br_model), deepcopy(cur_input),
+            tup=itup)
         score, output, converged, path, model, new_branch, result = tup
         itup = (score, output, converged, path, new_branch, result)
         cur_input = output
@@ -452,23 +481,24 @@ def search_greedy(itup=None):
 
     bytes_to_file(get_out_file(0), output)
 
+
 def search_mutation():
     print('[search_group]: search_mutation')
     global br_model
     global cur_input
-    ftup = execute(deepcopy(br_model), cur_input, 
-                    remaining_run=100,
-                    remaining_others=100)
+    ftup = execute(deepcopy(br_model), cur_input,
+                   remaining_run=100,
+                   remaining_others=100)
     score, output, converged, path, new_branch, result = ftup
     cur_input = output
     otup = score, output, converged, path, br_model, new_branch, result
-    
+
     if new_branch:
         return otup
 
     # Collect outputs
     outputs = result.read_inverted_input(get_out_dir(args.target))
-    
+
     # Try mutate model
     for pc, cond in reversed(br_model.items()):
         do_mutate = False
@@ -494,6 +524,7 @@ def search_mutation():
                     return otup
     return otup
 
+
 def search():
     tup = None
     while True:
@@ -505,36 +536,42 @@ def search():
         if not tup[4]:
             break
 
+
 def save_data(target):
-    import binascii, json
+    import binascii
+    import json
     print('save_data', target)
     dump = {}
     dump['br_blacklist'] = br_blacklist
     dump['br_model'] = [{'key': k, 'value': v} for k, v in br_model.items()]
     dump['cur_input'] = binascii.hexlify(cur_input).decode('ascii')
+
     def json_dumper(obj):
         return obj.__dict__
-    with open(get_search_save(target), \
-                    'w') as outfile:
+    with open(get_search_save(target),
+              'w') as outfile:
         json.dump(dump, outfile, default=json_dumper, indent=4)
     print('save_data done')
+
 
 def load_data(target):
     """
     Method to load an entire master state from JSON file...
     """
-    import binascii, json, shutil
+    import binascii
+    import json
+    import shutil
     global br_model, br_blacklist, cur_input
     if not os.path.exists(get_search_save(target)):
         return
-    with open(get_search_save(target), \
-                    'r') as infile:
+    with open(get_search_save(target),
+              'r') as infile:
         dump = json.load(infile)
         br_blacklist = dump['br_blacklist']
         cur_input = binascii.unhexlify(dump['cur_input'].encode('ascii'))
         for entry in dump['br_model']:
             br_model[entry['key']] = entry['value']
-        
+
     shutil.copyfile(get_search_save(target),
                     get_search_save(target)+".bk")
 

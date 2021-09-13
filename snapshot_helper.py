@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import pexpect
+import sys
 from common import *
 import subprocess
 import argparse
@@ -21,7 +23,8 @@ if isfile(get_qcow(args.target)):
 qemu_img_path = f"{PANDA_BUILD}/qemu-img"
 
 cmd = [qemu_img_path]
-cmd += ['convert', '-f', 'raw', '-O', 'qcow2', get_raw_img(), get_qcow(args.target)]
+cmd += ['convert', '-f', 'raw', '-O', 'qcow2',
+        get_raw_img(), get_qcow(args.target)]
 subprocess.check_call(cmd)
 
 # Start qemu to obtain snapshot
@@ -30,8 +33,6 @@ cmd += get_extra_args(args.target)
 
 print(" ".join([qemu_path] + cmd))
 
-import sys
-import pexpect
 p = pexpect.spawn(qemu_path, cmd)
 p.logfile = sys.stderr.buffer
 p.expect('syzkaller login: ', timeout=600)

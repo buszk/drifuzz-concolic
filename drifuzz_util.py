@@ -9,6 +9,8 @@ from cmdparser import opts, Command
 from common import get_global_module
 
 qemu_socket = '/tmp/zekun_drifuzz_socket_0'
+
+
 class SocketThread (threading.Thread):
 
     def __init__(self, model, addrses):
@@ -34,7 +36,7 @@ class SocketThread (threading.Thread):
                 connection, _ = sock.accept()
                 print("Got connection")
             except socket.timeout:
-                    continue
+                continue
             try:
                 # connection.settimeout(0.1)
                 while not self.stopped():
@@ -44,15 +46,17 @@ class SocketThread (threading.Thread):
                             break
                         _ty = struct.unpack('<Q', ty)[0]
                         opt = opts[Command(_ty)]
-                        args:bytearray[opt['argbytes']] = connection.recv(opt['argbytes'])
+                        args: bytearray[opt['argbytes']
+                                        ] = connection.recv(opt['argbytes'])
                         _args = struct.unpack(opt['argfmt'], args)
                         # print(_args)
-                        ret = self.model.handle(opts[Command(_ty)]['func'], *_args)
+                        ret = self.model.handle(
+                            opts[Command(_ty)]['func'], *_args)
                         # print(ret)
                         # If VM request reset, we close the connection
                         if Command(_ty) == Command.REQ_RESET:
                             print('REQ_RESET')
-                            break            
+                            break
                         if ret != None and opt['retfmt'] != '':
                             _ret = struct.pack(opt['retfmt'], *ret)
                             connection.send(_ret)
@@ -64,10 +68,10 @@ class SocketThread (threading.Thread):
                         pass
                     except ConnectionResetError:
                         break
-                
+
             finally:
                 connection.close()
-        
+
     def stop(self):
         self._stop_event.set()
 
@@ -79,9 +83,9 @@ class CommandHandler:
 
     def __init__(self, gm, seed='random_seed'):
         self.gm = gm
-        self.read_cnt:dict = {}
-        self.dma_cnt:dict = {}
-        
+        self.read_cnt: dict = {}
+        self.dma_cnt: dict = {}
+
         with open(seed, 'rb') as infile:
             self.payload = infile.read()
             self.payload_len = len(self.payload)
@@ -98,13 +102,13 @@ class CommandHandler:
         # return res
         ii = ind % self.payload_len
         res = b''
-        while ii + size >self.payload_len:
+        while ii + size > self.payload_len:
             res += self.payload[ii:self.payload_len]
             size -= (self.payload_len - ii)
             ii = 0
         res += self.payload[ii:ii+size]
         return res
-    
+
     def bytes_to_int(self, bs):
         if (len(bs) == 1):
             return struct.unpack('<B', bs)[0]
@@ -129,7 +133,7 @@ class CommandHandler:
         idx = self.get_read_idx(k, size)
         data = self.get_data_by_size(size, idx)
         return (self.bytes_to_int(data), idx, )
-    
+
     def get_dma_idx(self, k, size):
         n = 0
         if k not in self.dma_cnt.keys():
@@ -140,16 +144,13 @@ class CommandHandler:
 
         return self.gm.get_dma_idx(k, size, n, reuse=True)
 
-        
     def get_dma_data(self, k, size):
         idx = self.get_dma_idx(k, size)
         return (self.get_data_by_size(size, idx), idx, )
 
-    
-    def handle(self, type:str, *args):
+    def handle(self, type: str, *args):
         return getattr(self, f"handle_"+type)(*args)
 
-        
     def handle_write(self, region, addr, size, val):
         # print("[%.4f] write #%d[%lx][%d] =  %x\n" % (time.time(), region, addr, size, val))
         pass
@@ -159,7 +160,7 @@ class CommandHandler:
         ret, idx = self.get_read_data(k, size)
         # print("[%.4f] read  #%d[%lx][%d] as %x\n" % (time.time(), region, addr, size, ret))
         return (ret, idx, )
-    
+
     def handle_dma_buf(self, size):
         ret, idx = self.get_dma_data(size, size)
         # print("[%.4f] dma_buf [%x]\n" % (time.time(), size))
@@ -185,7 +186,7 @@ class CommandHandler:
 
     def handle_req_reset(self):
         self.slave.restart_vm()
-    
+
     def handle_exec_timeout(self):
         return (0,)
 
@@ -195,12 +196,12 @@ def json_dumper(obj):
 
 
 class GlobalModel():
-    
+
     def __init__(self):
         self.next_free_idx = 0
-        self.read_idx:dict = {}
-        self.dma_idx:dict = {}
-        self.last_key = (0,0,0)
+        self.read_idx: dict = {}
+        self.dma_idx: dict = {}
+        self.last_key = (0, 0, 0)
         self.key_count = 0
         self.tosave = True
 
@@ -224,7 +225,8 @@ class GlobalModel():
                 self.next_free_idx += size
                 return self.read_idx[key][cnt]
             else:
-                print("Error: read counter too large %d %d" % (cnt, len(self.read_idx[key])))
+                print("Error: read counter too large %d %d" %
+                      (cnt, len(self.read_idx[key])))
                 return 0
         elif cnt == 0:
             self.read_idx[key] = [self.next_free_idx]
@@ -233,7 +235,7 @@ class GlobalModel():
         else:
             print("Error: non-zero counter for empty read list %d" % cnt)
             return 0
-    
+
     def get_dma_idx(self, key, size, cnt, reuse=True):
         if key in self.dma_idx.keys():
             if reuse:
@@ -246,7 +248,8 @@ class GlobalModel():
                 self.next_free_idx += size
                 return self.dma_idx[key][cnt]
             else:
-                print("Error: dma counter too large %d %d" % (cnt, len(self.dma_idx[key])))
+                print("Error: dma counter too large %d %d" %
+                      (cnt, len(self.dma_idx[key])))
                 return 0
         elif cnt == 0:
             self.dma_idx[key] = [self.next_free_idx]
@@ -255,8 +258,6 @@ class GlobalModel():
         else:
             print("Error: non-zero counter for empty dma list %d" % cnt)
             return 0
-
-
 
     def save_data(self, target):
         if not self.tosave:
@@ -271,8 +272,8 @@ class GlobalModel():
             elif key == 'read_idx' or key == 'dma_idx':
                 dump[key] = [{'key': k, 'value': v} for k, v in value.items()]
 
-        with open(get_global_module(target), \
-                        'w') as outfile:
+        with open(get_global_module(target),
+                  'w') as outfile:
             json.dump(dump, outfile, default=json_dumper, indent=4)
         print('save_data done')
 
@@ -282,15 +283,15 @@ class GlobalModel():
         """
         if not os.path.exists(get_global_module(target)):
             return
-        with open(get_global_module(target), \
-                        'r') as infile:
+        with open(get_global_module(target),
+                  'r') as infile:
             dump = {}
             try:
                 dump = json.load(infile)
             except json.decoder.JSONDecodeError:
                 print("We have a corrupted model save")
                 print("Try the backup file")
-                with open(get_global_module(target)+ ".bk", 'r') as f:
+                with open(get_global_module(target) + ".bk", 'r') as f:
                     dump = json.load(f)
                 shutil.copyfile(get_global_module(target)+".bk",
                                 get_global_module(target))

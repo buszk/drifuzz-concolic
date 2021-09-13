@@ -1,6 +1,7 @@
 
 from enum import IntEnum
 
+
 class Command(IntEnum):
     WRITE = 1
     READ = 2
@@ -11,6 +12,7 @@ class Command(IntEnum):
     VM_KASAN = 7
     REQ_RESET = 8
     EXEC_TIMEOUT = 9
+
 
 opts = {
     Command.WRITE: {

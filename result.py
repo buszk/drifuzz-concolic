@@ -3,16 +3,20 @@ from copy import deepcopy
 from mtype import *
 
 # TODO: duplicate code
+
+
 def file_to_bytes(fname):
     with open(fname, 'rb') as f:
         return f.read()
+
 
 class ExecutedBranch(object):
     """
     docstring
     """
-    def __init__(self, count:int, pc:int, cond:int, hash:int, vars:int,
-                    sym_vars:[str], inverted_vals:{int:int}):
+
+    def __init__(self, count: int, pc: int, cond: int, hash: int, vars: int,
+                 sym_vars: [str], inverted_vals: {int: int}):
         self.count = count
         self.pc = pc
         self.cond = cond
@@ -22,14 +26,14 @@ class ExecutedBranch(object):
         self.inverted_vals = inverted_vals
         self.flippable = (inverted_vals != {})
         self._flipped_input = None
-    
-    def __str__(self):
-        return  f'Count: {self.count}, PC: {hex(self.pc)}, Cond: {self.cond}, ' \
-                f'Hash: {hex(self.hash)}, Vars: {hex(self.vars)}, ' \
-                f'Flippable: {self.flippable}, ' \
-                f'Sym_vars: {",".join(self.sym_vars)}'
 
-    def set_flipped_input(self, input:bytearray):
+    def __str__(self):
+        return f'Count: {self.count}, PC: {hex(self.pc)}, Cond: {self.cond}, ' \
+            f'Hash: {hex(self.hash)}, Vars: {hex(self.vars)}, ' \
+            f'Flippable: {self.flippable}, ' \
+            f'Sym_vars: {",".join(self.sym_vars)}'
+
+    def set_flipped_input(self, input: bytearray):
         assert self.flippable
         self._flipped_input = input
 
@@ -37,16 +41,18 @@ class ExecutedBranch(object):
         assert self._flipped_input
         return self._flipped_input
 
+
 class ConcolicResult(object):
     """
     docstring
     """
+
     def __init__(self, path_constraints_file, index_file, outdir=""):
         """
         docstring
         """
         self.input2seed = {}
-        self.executed_branches:[ExecutedBranch] = []
+        self.executed_branches: [ExecutedBranch] = []
         self.num_unique_mmio = 0
         self._appeared_mmio = {}
         self.jcc_mod = {}
@@ -74,16 +80,16 @@ class ConcolicResult(object):
                 else:
                     # dma
                     pass
-        
+
         with open(path_constraints_file, 'r') as f:
             for line in f:
                 assert(line[-1] == '\n')
                 line = line[:-1]
                 if '= Z3 Path Solver End =' in line:
                     # reset and export
-                    self.executed_branches.append( \
+                    self.executed_branches.append(
                         ExecutedBranch(count, pc, condition, h, v,
-                                        sym_vars, inverted_vals))
+                                       sym_vars, inverted_vals))
 
                 elif 'Count:' in line:
                     sym_vars = []
@@ -126,7 +132,7 @@ class ConcolicResult(object):
                     else:
                         print('Some input_index is not mapped to seed_index')
                         print('Maybe qemu simulated some reg')
-                
+
                 elif 'JCC Mod Output End' in line:
                     pass
 
@@ -147,7 +153,7 @@ class ConcolicResult(object):
                     else:
                         print('Some input_index is not mapped to seed_index')
                         print('Maybe qemu simulated some reg')
-                
+
                 elif 'Conflict PC' in line:
                     splited = line.split(' ')
                     assert(splited[0] == 'Conflict')
@@ -156,11 +162,12 @@ class ConcolicResult(object):
                     pcval = int(splited[2], 16)
                     condval = int(splited[4])
                     self.conflict_pcs[pcval] = condval
-        
+
         if outdir != "":
             for br in self.executed_branches:
                 if br.flippable:
-                    br.set_flipped_input(file_to_bytes(join(outdir, str(br.count))))
+                    br.set_flipped_input(file_to_bytes(
+                        join(outdir, str(br.count))))
 
     def __str__(self):
         """
@@ -182,7 +189,7 @@ class ConcolicResult(object):
         """
         docstring
         """
-        orig:bytearray
+        orig: bytearray
         with open(seed_fn, 'rb') as f:
             orig = bytearray(f.read())
 
@@ -224,8 +231,8 @@ class ConcolicResult(object):
         """
         assert self.jcc_mod_set
         return len(self.conflict_pcs) == 0
-    
-    #deprecated
+
+    # deprecated
     def jcc_mod_confict_pcs(self):
         """
         docstring
@@ -249,7 +256,7 @@ class ConcolicResult(object):
         #                 for p in var2brs[var]:
         #                     if p not in conficlt_pc:
         #                         conficlt_pc.append(p)
-                        
+
         #     # print(jcc_var_set, EB_branch.sym_vars)
         # return conficlt_pc
         return self.conflict_pcs
@@ -278,7 +285,7 @@ class ConcolicResult(object):
             if br.flippable:
                 result += 1
         return result
-    
+
     def score_after_first_appearence(self, pc):
         """
         docstring
@@ -308,7 +315,7 @@ class ConcolicResult(object):
             assert(False and "Got zero score, check drifuzz/path_constraints")
             return ScoreT(0, 0, 0)
         return ScoreT(len(new_pcs), len(pcs), count)
-        
+
     def next_branch_to_flip(self, model):
         print("[result] next_branch_to_flip")
         for br in self.executed_branches:
@@ -322,7 +329,7 @@ class ConcolicResult(object):
             if br.pc not in model:
                 # print("not in model")
                 continue
-            if model[br.pc] >= 2: #Cond.BOTH
+            if model[br.pc] >= 2:  # Cond.BOTH
                 # print("model both")
                 continue
             # print(model[br.pc], br.cond, model[br.pc] == br.cond)
@@ -346,7 +353,7 @@ class ConcolicResult(object):
                 continue
             elif br.pc in self.jcc_mod and curr_pc == 0:
                 continue
-            
+
             if curr_pc == 0:
                 curr_pc = br.pc
                 h = br.hash
@@ -407,6 +414,8 @@ class ConcolicResult(object):
                 path.append(a)
         return path
 
+
 if __name__ == '__main__':
-    CR_a = ConcolicResult('work/ath9k/drifuzz_path_constraints', 'work/ath9k/drifuzz_index')
+    CR_a = ConcolicResult(
+        'work/ath9k/drifuzz_path_constraints', 'work/ath9k/drifuzz_index')
     print(CR_a)
