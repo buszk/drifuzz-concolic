@@ -51,7 +51,14 @@ addrs_config = {
     },
     "atlantic": {
         "atlantic": [0xffffffffa0000000, 320000],
-        }
+    },
+    "snic": {
+        "snic": [0xffffffffa0000000, 262144], 
+    },
+    "mwifiex_pcie": {
+        "mwifiex_pcie": [0xffffffffa00e0000, 118784],
+        "mwifiex": [0xffffffffa000000, 917504],
+    }
 }
 
 addr = 0
@@ -103,7 +110,7 @@ else:
     p = subprocess.Popen(cmd)
     p.wait()
     cmd = ['objdump', '-Mintel', '-d', join(linux_build, 'vmlinux'),
-            f'--start-addr={hex(addr)-0x10}',
+            f'--start-addr={hex(addr-0x10)}',
             f'--stop-addr={hex(addr+0x10)}']
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     p.wait()
