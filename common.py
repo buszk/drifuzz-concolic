@@ -38,9 +38,11 @@ def get_search_save(target):
     return join(work, target, "search.sav")
 
 
-def create_if_not_exist(d):
-    if not os.path.exists(d):
-        os.makedirs(d)
+def create_if_not_exist(d): j
+
+
+if not os.path.exists(d):
+    os.makedirs(d)
 
 
 def setup_work_dir(target=""):
