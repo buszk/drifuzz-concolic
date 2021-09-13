@@ -117,6 +117,7 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
         extra_args = get_extra_args(target, socket=socket_file)
     extra_args += form_jcc_mod_optiom()
 
+    trim_failed = True
     # Record
     if do_record:
         try:
@@ -170,6 +171,8 @@ def run_concolic(do_record=True, do_trim= True, do_replay=True):
                 print('PANDA Trim failed!')
                 trim_failed = True
                 # return 1
+            else:
+                trim_failed = False
         else:
             trim_failed = True
             
@@ -246,7 +249,10 @@ def parse_arguments():
 def main():
     setup_work_dir(target=args.target)
     rc, tm, rp, ps = parse_arguments()
-    run_concolic(do_record=rc, do_trim=tm, do_replay=rp)
+    ret = run_concolic(do_record=rc, do_trim=tm, do_replay=rp)
+    if rp and ret:
+        print(f"Concolic run/replay failed with status {ret}")
+        return ret
     if ps and parse_concolic() == False:
         return 1
     return 0
