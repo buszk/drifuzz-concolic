@@ -123,7 +123,7 @@ class ConcolicResult(object):
                     assert(splited[2][:4] == 'val_')
                     assert(splited[3] == '=')
                     assert(splited[4][:2] == '#x')
-                    input_index = int(splited[2][4:], 16)
+                    input_index = int(splited[2][4:].split('_')[-1], 16)
                     new_val = int(splited[4][2:], 16)
                     val_name = splited[2]
                     assert(new_val >= 0 and new_val <= 255)
@@ -144,7 +144,7 @@ class ConcolicResult(object):
                     assert(splited[2][:4] == 'val_')
                     assert(splited[3] == '=')
                     assert(splited[4][:2] == '#x')
-                    input_index = int(splited[2][4:], 16)
+                    input_index = int(splited[2][4:].split('_')[-1], 16)
                     new_val = int(splited[4][2:], 16)
                     val_name = splited[2]
                     assert(new_val >= 0 and new_val <= 255)
