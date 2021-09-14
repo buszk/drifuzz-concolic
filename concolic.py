@@ -108,13 +108,13 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
     socket_file = ""
     tf = None
     socket_thread = None
-    global_module = None
+    global_model = None
     if args.socket:
         socket_file = args.socket
     else:
-        global_module = GlobalModel()
-        global_module.load_data(args.target)
-        command_handler = CommandHandler(global_module, seed=args.seed)
+        global_model = GlobalModel()
+        global_model.load_data(args.target)
+        command_handler = CommandHandler(global_model, seed=args.seed)
         tf = tempfile.NamedTemporaryFile()
         socket_thread = SocketThread(command_handler, tf.name)
         socket_thread.start()
@@ -155,7 +155,7 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
                     raise TimeoutError()
         except:
             if socket_thread:
-                global_module.save_data(args.target)
+                global_model.save_data(args.target)
                 socket_thread.stop()
             print('PANDA record failed!')
             return 1
@@ -180,7 +180,7 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
             p = subprocess.Popen(cmd)
             p.wait()
             if p.returncode != 0:
-                # global_module.save_data(args.target)
+                # global_model.save_data(args.target)
                 # socket_thread.stop()
                 print('PANDA Trim failed!')
                 trim_failed = True
@@ -221,13 +221,13 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
         p.wait()
         if p.returncode != 0:
             if socket_thread:
-                global_module.save_data(args.target)
+                global_model.save_data(args.target)
                 socket_thread.stop()
             print(f'PANDA replay failed! exitcode={p.returncode}')
             ret = 1
 
     if socket_thread:
-        global_module.save_data(args.target)
+        global_model.save_data(args.target)
         tf.close()
         print("Stopping thread")
         socket_thread.stop()
