@@ -7,6 +7,7 @@ import sys
 import subprocess
 import argparse
 import tempfile
+from ast import literal_eval
 from multiprocessing import Process
 from os.path import join, exists
 from common import *
@@ -42,6 +43,7 @@ parser.add_argument('--outdir', type=str, default="")
 parser.add_argument('--socket', type=str, default="")
 parser.add_argument('--tempdir', default=False, action="store_true")
 parser.add_argument('--id', default="", type=str)
+parser.add_argument('--fixer_config', default="", type=str)
 args = parser.parse_args()
 
 outdir = get_out_dir(args.target)
@@ -114,7 +116,15 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
     else:
         global_model = GlobalModel()
         global_model.load_data(args.target)
-        command_handler = CommandHandler(global_model, seed=args.seed)
+        fixer = None
+        if args.fixer_config:
+            json_dict = json.loads(args.fixer_config)
+            fixer_config: Dict[Tuple[int, int], List[Tuple[int, int]]] = {
+                literal_eval(k): [literal_eval(x) for x in v] for k, v in json_dict.items()}
+            print(fixer_config)
+            fixer = Fixer(fixer_config)
+        command_handler = CommandHandler(
+            global_model, seed=args.seed, fixer=fixer)
         tf = tempfile.NamedTemporaryFile()
         socket_thread = SocketThread(command_handler, tf.name)
         socket_thread.start()
@@ -158,7 +168,7 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
                 global_model.save_data(args.target)
                 socket_thread.stop()
             print('PANDA record failed!')
-            return 1
+            return 2
 
         # Sanity check?
         mmio_count = len(open(__get_drifuzz_index()).readlines())

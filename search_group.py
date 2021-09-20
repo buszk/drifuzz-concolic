@@ -1,4 +1,5 @@
 #!/usr/bin/env -S python3 -u
+import json
 import os
 import sys
 import argparse
@@ -16,7 +17,7 @@ parser.add_argument("--mutate", default=False, action="store_true")
 args = parser.parse_args()
 
 br_model = {}  # {br: Cond}
-br_blacklist = []
+br_blacklist = set()
 cur_input = b''
 
 
@@ -171,25 +172,68 @@ def run_concolic_model(target, inp, model):
     result.set_jcc_mod(jcc_pcs)
     if result.is_jcc_mod_ok():
         return result
+    elif test_branch in br_blacklist:
+        # If test_branch is alreay black-listed, we need to add conflict pcs
+        # to blacklist. We definitely want to single step them.
+        [br_blacklist.add(k) for k in result.get_conflict_pcs()]
 
     # A test print
     result.next_branch_to_flip(model)
     print("\n".join([str(hex(x)) for x in result.get_conflict_pcs().keys()]))
 
-    # Run a second time
-    print("Repeat with updated output")
-    blacklist = result.get_conflict_pcs()
-    zeros, ones, others, jcc_pcs = get_lists_from_model(model)
-    result: ConcolicResult = run_concolic(target, get_out_file(
-        0), zeros=zeros, ones=ones, others=others, target_br=test_branch)
-    if result == None:
-        return None
-    result.set_jcc_mod(jcc_pcs)
-    if result.is_jcc_mod_ok():
-        return result
-    # assert(False)
+    fixer = {}
+    # Fixer may not be valid if multiple values are set for
+    # the same (region, ioaddr, offset) pair
+    fixer_valid = True
+    for x, newval in result.conflicting_bytes.items():
+        print(x, newval)
+        sp = x.split('_')
+        region = 0
+        if sp[1] == 'io' or sp[1] == 'consistent':
+            region = 1 if sp[1] == 'io' else 2
+            ioaddr = int(sp[2], 16)
+            offset = int(sp[4], 16)
+            key = (region, ioaddr)
+            if key in fixer:
+                for s in fixer[key]:
+                    if s == offset:
+                        fixer_valid = False
+                fixer[key].add((offset, newval))
+            else:
+                fixer[key] = set([(offset, newval)])
+
+    # Run with a fixer
+    if test_branch not in br_blacklist and fixer_valid:
+        print("Repeat with a fixer")
+        tmp = file_to_bytes(inp)
+        result: ConcolicResult = run_concolic(
+            target, get_out_file(0), zeros=zeros, ones=ones, others=others, target_br=test_branch, fixer=fixer)
+        if result == None:
+            return None
+        result.set_jcc_mod(jcc_pcs)
+        if result.is_jcc_mod_ok():
+            return result
+        print("\n".join([str(hex(x))
+              for x in result.get_conflict_pcs().keys()]))
+        # Restore input file
+        bytes_to_file(get_out_file(0), tmp)
+
+    # # Run a second time
+    # print("Repeat with updated output")
+    # blacklist = result.get_conflict_pcs()
+    # zeros, ones, others, jcc_pcs = get_lists_from_model(model)
+    # result: ConcolicResult = run_concolic(target, get_out_file(
+    #     0), zeros=zeros, ones=ones, others=others, target_br=test_branch)
+    # if result == None:
+    #     return None
+    # result.set_jcc_mod(jcc_pcs)
+    # if result.is_jcc_mod_ok():
+    #     return result
+    # # assert(False)
 
     # Remove target and try
+    # There is not need to remove if test_branch is already black-listed
+    # Previous `run_concolic` already tested
     print("Remove target and fall back")
     blacklist = result.get_conflict_pcs()
     zeros, ones, others, jcc_pcs = get_lists_from_model(
@@ -200,34 +244,32 @@ def run_concolic_model(target, inp, model):
         return None
     result.set_jcc_mod(jcc_pcs)
     if result.is_jcc_mod_ok():
-        br_blacklist += [test_branch]
+        br_blacklist.add(test_branch)
         return result
 
-    # # Add conflict pc's and try again
-    # blacklist = result.jcc_mod_confict_pcs()
-    # zeros, ones, others, jcc_pcs = get_lists_from_model(
-    #                                     model,
-    #                                     blacklist=blacklist,
-    #                                     addition=blacklist)
-    # result:ConcolicResult = run_concolic(target, get_out_file(0), zeros=zeros, ones=ones, others=others, target_br=test_branch)
-    # if result == None:
-    #     return None
-    # result.set_jcc_mod(jcc_pcs)
-    # if result.is_jcc_mod_ok():
-    #     return result
-    else:
-        assert False
-        # Weird but fall through
-        # return None
+    # Add conflict pc's and try again
+    print("Add conflict pcs and try again")
+    blacklist = result.jcc_mod_confict_pcs()
+    zeros, ones, others, jcc_pcs = get_lists_from_model(
+        merge_dict(model, blacklist))
+    result: ConcolicResult = run_concolic(target, get_out_file(
+        0), zeros=zeros, ones=ones, others=others, target_br=test_branch)
+    if result == None:
+        return None
+    result.set_jcc_mod(jcc_pcs)
+    if result.is_jcc_mod_ok():
+        return result
+    assert False and "Cannot find a feasible path for given model"
+    # return None
 
 
-def run_concolic(target, inp, zeros=[], ones=[], others=[], target_br=0):
+def run_concolic(target, inp, zeros=[], ones=[], others=[], target_br=0, fixer={}):
     """Run concolic script
     Args:
         target (str): target module
-        inp (str): input file 
+        inp (str): input file
         zeros ([int]): branch pc forced to be zero
-        ones ([int]): branch pc forced to be one 
+        ones ([int]): branch pc forced to be one
     Returns:
         result (ConcolicResult):
     """
@@ -255,6 +297,11 @@ def run_concolic(target, inp, zeros=[], ones=[], others=[], target_br=0):
     if target_br:
         extra_args += ['--target_branch_pc', str(hex(target_br))[2:]]
         extra_args += ['--after_target_limit', '256']
+
+    # example fixer: {(1, 0x3a028): [(0, 0x02)]}
+    if fixer:
+        extra_args += ['--fixer_config',
+                       json.dumps({str(k): [str(x) for x in v] for k, v in fixer.items()})]
 
     with open(get_concolic_log(), 'a+') as f:
         cmd = ['./concolic.py', target, inp] + extra_args
@@ -305,7 +352,7 @@ def execute(model, input, remaining_run=5, remaining_others=10):
 
         result = run_concolic_model(args.target, get_out_file(0), model)
         if result == None:
-            # FIXME: experimental
+            # FIXME: experimentalmeet.google.com/psc-nzur-fuwm
             return ScoreT(0, 0, 0), input, False, [], False, result
 
     if result.is_jcc_mod_ok():
@@ -469,6 +516,8 @@ def search_greedy(itup=None):
     print("[search_group] current model:")
     print_model(br_model)
     while new_branch:
+        # Test: Add a new execution
+        # _, cur_input, _, _, _, _ = execute(br_model, cur_input)
         tup = converge(
             deepcopy(br_model), deepcopy(cur_input),
             tup=itup)
@@ -542,7 +591,7 @@ def save_data(target):
     import json
     print('save_data', target)
     dump = {}
-    dump['br_blacklist'] = br_blacklist
+    dump['br_blacklist'] = list(br_blacklist)
     dump['br_model'] = [{'key': k, 'value': v} for k, v in br_model.items()]
     dump['cur_input'] = binascii.hexlify(cur_input).decode('ascii')
 
@@ -567,7 +616,7 @@ def load_data(target):
     with open(get_search_save(target),
               'r') as infile:
         dump = json.load(infile)
-        br_blacklist = dump['br_blacklist']
+        br_blacklist = set(dump['br_blacklist'])
         cur_input = binascii.unhexlify(dump['cur_input'].encode('ascii'))
         for entry in dump['br_model']:
             br_model[entry['key']] = entry['value']

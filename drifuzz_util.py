@@ -5,10 +5,26 @@ import socket
 import struct
 import shutil
 import threading
+from typing import Dict, Tuple, List
 from cmdparser import opts, Command
 from common import get_global_module
 
 qemu_socket = '/tmp/zekun_drifuzz_socket_0'
+
+
+class Fixer:
+    def __init__(self, option=Dict[Tuple[int, int], List[Tuple[int, int]]]):
+        self.option = option
+
+    def fix_io(self, region, ioaddr, size, val):
+        key = (region, ioaddr)
+        if key in self.option:
+            for offset, new_val in self.option[key]:
+                assert offset <= size
+                assert new_val >= 0 and new_val < 256
+                val &= ~(0xff << (offset*8))
+                val |= (new_val << (offset*8))
+        return val
 
 
 class SocketThread (threading.Thread):
@@ -38,7 +54,7 @@ class SocketThread (threading.Thread):
             except socket.timeout:
                 continue
             try:
-                # connection.settimeout(0.1)
+                connection.settimeout(0.1)
                 while not self.stopped():
                     try:
                         ty: bytearray[8] = connection.recv(8)
@@ -81,10 +97,11 @@ class SocketThread (threading.Thread):
 
 class CommandHandler:
 
-    def __init__(self, gm, seed='random_seed'):
+    def __init__(self, gm, seed='random_seed', fixer=None):
         self.gm = gm
         self.read_cnt: dict = {}
         self.dma_cnt: dict = {}
+        self.fixer = fixer
 
         with open(seed, 'rb') as infile:
             self.payload = infile.read()
@@ -158,6 +175,9 @@ class CommandHandler:
     def handle_read(self, region, addr, size):
         k = (region, addr, size)
         ret, idx = self.get_read_data(k, size)
+        if self.fixer:
+            assert self.fixer.fix_io
+            ret = self.fixer.fix_io(region, addr, size, ret)
         # print("[%.4f] read  #%d[%lx][%d] as %x\n" % (time.time(), region, addr, size, ret))
         return (ret, idx, )
 

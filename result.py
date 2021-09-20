@@ -53,13 +53,15 @@ class ConcolicResult(object):
         docstring
         """
         self.input2seed = {}
-        self.executed_branches: [ExecutedBranch] = []
+        self.executed_branches: List[ExecutedBranch] = []
         self.num_unique_mmio = 0
         self._appeared_mmio = {}
         self.jcc_mod = {}
         self.jcc_mod_set = False
         self.mod_value = {}
         self.conflict_pcs = {}
+        self.conflicting_bytes = {}
+        self.symbol_to_mod_value = {}
         with open(index_file, 'r') as f:
             for line in f:
                 entries = line.split(', ')
@@ -83,6 +85,7 @@ class ConcolicResult(object):
                     pass
 
         with open(path_constraints_file, 'r') as f:
+            local_conflicting_bytes = []
             for line in f:
                 assert(line[-1] == '\n')
                 line = line[:-1]
@@ -154,6 +157,8 @@ class ConcolicResult(object):
                     else:
                         print('Some input_index is not mapped to seed_index')
                         print('Maybe qemu simulated some reg')
+                    if val_name in local_conflicting_bytes:
+                        self.conflicting_bytes[val_name] = new_val
 
                 elif 'Conflict PC' in line:
                     splited = line.split(' ')
@@ -163,6 +168,12 @@ class ConcolicResult(object):
                     pcval = int(splited[2], 16)
                     condval = int(splited[4])
                     self.conflict_pcs[pcval] = condval
+
+                elif 'Conflict Byte' in line:
+                    splited = line.split(' ')
+                    assert(splited[0] == 'Conflict')
+                    assert(splited[1] == 'Byte:')
+                    local_conflicting_bytes.append(splited[2])
 
         if outdir != "":
             for br in self.executed_branches:
