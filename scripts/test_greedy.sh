@@ -19,11 +19,10 @@ function wait_ex {
 }
 
 function run {
-    mkdir -p $concolic_dir/work/$1
     echo "Generate snapshot: $1"
     $concolic_dir/snapshot_helper.py $1 &>$concolic_dir/work/$1/snapshot.log
     echo "Explore: $1"
-    $concolic_dir/scripts/run.sh $1 &>/dev/null
+    $concolic_dir/search_greedy.py $1 random_seed &>log/search_greedy.$1.log
     if grep "address: 88," $concolic_dir/work/$1/drifuzz_index >/dev/null; then
         echo "Success: $1"
         [ $2 -eq 1 ] && exit 0
