@@ -1,6 +1,7 @@
 
 import os
 import sys
+import fcntl
 from tempdir import TempDir
 from os.path import join, dirname, abspath
 
@@ -123,3 +124,12 @@ def get_extra_args(target, socket='', prog='', tempdir=''):
         extra_args += ['-net', f'nic,model={orig}']
 
     return extra_args
+
+class Locker:
+    def __enter__ (self):
+        self.fp = open("./lockfile.lck")
+        fcntl.flock(self.fp.fileno(), fcntl.LOCK_EX)
+
+    def __exit__ (self, _type, value, tb):
+        fcntl.flock(self.fp.fileno(), fcntl.LOCK_UN)
+        self.fp.close()

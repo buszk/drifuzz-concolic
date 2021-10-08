@@ -17,6 +17,9 @@ sys.path.append(join(PANDA_SRC, "panda/scripts"))  # nopep8
 from run_guest import create_recording  # nopep8
 
 
+RECORD_ERROR_CODE = 2
+
+
 def handler(signum, frame):
     for th in threading.enumerate():
         print(th)
@@ -103,6 +106,27 @@ def form_jcc_mod_optiom():
     return []
 
 
+def record_command(target, extra_args, cmd, max_time_seconds):
+    with Locker():
+        p = Process(target=create_recording,
+                    args=(qemu_path, get_qcow(args.target, id=args.id), get_snapshot(target),
+                          cmd, copy_dir, get_recording_path(
+                        target), expect_prompt, cdrom,
+                    ),
+                    kwargs={'extra_args': extra_args})
+
+        p.start()
+        for i in range(max_time_seconds):
+            p.join(timeout=1)
+            # Process finished
+            if p.exitcode != None:
+                break
+            if i == max_time_seconds - 1:
+                p.kill()
+                return False
+        return True
+
+
 def run_concolic(do_record=True, do_trim=True, do_replay=True):
 
     ret = 0
@@ -142,33 +166,24 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
     trim_failed = True
     # Record
     if do_record:
+
+        if not record_command(target, extra_args, ["ls"], 10):
+            print("Even ls command timeout, recreate snapshot and try again")
+            p = subprocess.Popen(
+                ["python3", "-u", f"{dirname(__file__)}/snapshot_helper.py", target])
+            p.wait()
+            assert record_command(target, extra_args, ["ls"], 10)
         try:
-            p = Process(target=create_recording,
-                        args=(qemu_path, get_qcow(args.target, id=args.id), get_snapshot(target),
-                              get_cmd(target), copy_dir, get_recording_path(
-                                  target), expect_prompt, cdrom,
-                              ),
-                        kwargs={'extra_args': extra_args})
-            # create_recording(qemu_path, get_qcow(args.target,id=args.id), get_snapshot(target), \
-            #         get_cmd(target), copy_dir, get_recording_path(target), \
-            #         expect_prompt, cdrom, extra_args=extra_args)
-            p.start()
-            MAX_RECORD_SECONDS = 30
-            for i in range(MAX_RECORD_SECONDS):
-                p.join(timeout=1)
-                # Process finished
-                if p.exitcode != None:
-                    break
-                print(f"[{i}] join failed")
-                if i == MAX_RECORD_SECONDS - 1:
-                    p.kill()
-                    raise TimeoutError()
+            MAX_RECORD_SECONDS = 20
+            if not record_command(target, extra_args, get_cmd(target), MAX_RECORD_SECONDS):
+                print('PANDA record timedout!')
+                raise TimeoutError()
         except:
             if socket_thread:
                 global_model.save_data(args.target)
                 socket_thread.stop()
             print('PANDA record failed!')
-            return 2
+            return RECORD_ERROR_CODE
 
         # Sanity check?
         mmio_count = len(open(__get_drifuzz_index()).readlines())
@@ -212,9 +227,9 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
                "-replay", record_path,
                "-panda", f"tainted_drifuzz:target_branch_pc={args.target_branch_pc},after_target_limit={args.after_target_limit}",
                "-panda", "tainted_branch",
-               #"-d", "in_asm",
-               #"-d", "in_asm,op,llvm_ir",
-               #"-dfilter", "0xffffffffa0128000..0xffffffffffffffff",
+               # "-d", "in_asm",
+               # "-d", "in_asm,op,llvm_ir",
+               # "-dfilter", "0xffffffffa0000000..0xffffffffffffffff",
                "-pandalog", get_pandalog(target)]
         cmd += extra_args
 
@@ -277,7 +292,7 @@ def main():
     setup_work_dir(target=args.target)
     rc, tm, rp, ps = parse_arguments()
     ret = run_concolic(do_record=rc, do_trim=tm, do_replay=rp)
-    if rp and ret:
+    if rp and ret == RECORD_ERROR_CODE:
         print(f"Concolic run/replay failed with status {ret}")
         return ret
     if ps and parse_concolic() == False:
