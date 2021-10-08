@@ -1,6 +1,6 @@
 #!/bin/bash
-
-modprobe $1
+NICE_ARG=--20
+nice $NICE_ARG modprobe $1
 if ip link | grep "eth0"; then
 ip link set dev eth0 up
 elif ip link | grep "wlan0"; then
