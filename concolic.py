@@ -17,9 +17,6 @@ sys.path.append(join(PANDA_SRC, "panda/scripts"))  # nopep8
 from run_guest import create_recording  # nopep8
 
 
-RECORD_ERROR_CODE = 2
-
-
 def handler(signum, frame):
     for th in threading.enumerate():
         print(th)
@@ -47,6 +44,7 @@ parser.add_argument('--socket', type=str, default="")
 parser.add_argument('--tempdir', default=False, action="store_true")
 parser.add_argument('--id', default="", type=str)
 parser.add_argument('--fixer_config', default="", type=str)
+parser.add_argument('--noflip', default=False, action="store_true")
 args = parser.parse_args()
 
 outdir = get_out_dir(args.target)
@@ -61,14 +59,14 @@ if args.tempdir:
     tempdirname = td.name
 
 
-def __get_drifuzz_index():
+def drifuzz_index_file():
     if args.tempdir and tempdirname:
         return join(tempdirname, 'drifuzz_index')
     else:
         return get_drifuzz_index(args.target)
 
 
-def __get_drifuzz_path_constraints():
+def drifuzz_path_constraints_file():
     if args.tempdir and tempdirname:
         return join(tempdirname, 'drifuzz_path_constraints')
     else:
@@ -76,7 +74,7 @@ def __get_drifuzz_path_constraints():
 
 
 def get_trim_start():
-    with open(__get_drifuzz_index(), 'r') as f:
+    with open(drifuzz_index_file(), 'r') as f:
         for line in f:
             entries = line.split(', ')
             assert(entries[5].split(' ')[0] == 'rr_count:')
@@ -85,7 +83,7 @@ def get_trim_start():
     return 0
 
 
-def form_jcc_mod_optiom():
+def form_jcc_mod_option():
     jcc_mod_str = 'jcc_mod:'
     for e in args.zeros:
         if e[0:2] == '0x':
@@ -161,7 +159,7 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
             target, socket=socket_file, tempdir=tempdirname)
     else:
         extra_args = get_extra_args(target, socket=socket_file)
-    extra_args += form_jcc_mod_optiom()
+    extra_args += form_jcc_mod_option()
 
     trim_failed = True
     # Record
@@ -186,7 +184,15 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
             return RECORD_ERROR_CODE
 
         # Sanity check?
-        mmio_count = len(open(__get_drifuzz_index()).readlines())
+        if not os.path.exists(drifuzz_index_file()):
+            print('PANDA record did not generate any I/O trace')
+            print(f'Check if memory mapping is correct for {args.target}')
+            if socket_thread:
+                global_model.save_data(args.target)
+                socket_thread.stop()
+            return MAPPING_ERROR_CODE
+
+        mmio_count = len(open(drifuzz_index_file()).readlines())
         if (mmio_count > 10000 and args.target_branch_pc == 0) or \
                 (mmio_count > 200000):
             print(
@@ -262,8 +268,8 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
 
 def parse_concolic():
     CR_result = ConcolicResult(
-        __get_drifuzz_path_constraints(),
-        __get_drifuzz_index())
+        drifuzz_path_constraints_file(),
+        drifuzz_index_file())
     jcc_mod_pc = {}
     for pc in args.ones:
         jcc_mod_pc[int(pc, 16)] = 1
@@ -271,8 +277,11 @@ def parse_concolic():
         jcc_mod_pc[int(pc, 16)] = 0
 
     CR_result.set_jcc_mod(jcc_mod_pc)
+    if args.noflip:
+        CR_result.generate_base_input(args.seed, outdir)
+    else:
+        CR_result.generate_inverted_input(args.seed, outdir)
     jcc_ok = CR_result.is_jcc_mod_ok()
-    CR_result.generate_inverted_input(args.seed, outdir)
     return jcc_ok
 
 
@@ -292,7 +301,7 @@ def main():
     setup_work_dir(target=args.target)
     rc, tm, rp, ps = parse_arguments()
     ret = run_concolic(do_record=rc, do_trim=tm, do_replay=rp)
-    if rp and ret == RECORD_ERROR_CODE:
+    if rp and ret in [RECORD_ERROR_CODE, MAPPING_ERROR_CODE]:
         print(f"Concolic run/replay failed with status {ret}")
         return ret
     if ps and parse_concolic() == False:

@@ -23,6 +23,10 @@ addrs_config = {
         "ath9k_hw": [0xffffffffa0018000, 1024000],
         "ath": [0xffffffffa0000000, 90112],
     },
+    "ath5k": {
+        "ath5k": [0xffffffffa0018000, 536576],
+        "ath": [0xffffffffa0000000, 90112],
+    },
     "iwlwifi": {
         "iwlwifi": [0xffffffffa0000000, 798720],
     },
@@ -59,6 +63,10 @@ addrs_config = {
     "mwifiex_pcie": {
         "mwifiex_pcie": [0xffffffffa00e0000, 118784],
         "mwifiex": [0xffffffffa000000, 917504],
+    },
+    "orinoco_pci": {
+        "orinoco_pci": [0xffffffffa0038000, 16384],
+        "orinoco": [0xffffffffa0000000, 225280],
     }
 }
 
@@ -93,6 +101,7 @@ if (len(tree[addr]) == 1):
     cmd = ['objdump', '-Mintel', '-d', module_path,
            f'--start-addr={hex(addr - module_base-0x10)}',
            f'--stop-addr={hex(addr - module_base+0x10)}']
+    print(' '.join(cmd))
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     p.wait()
     prevlines = []

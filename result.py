@@ -48,7 +48,7 @@ class ConcolicResult(object):
     docstring
     """
 
-    def __init__(self, path_constraints_file, index_file, outdir=""):
+    def __init__(self, path_constraints_file, index_file, noflip=False, outdir=""):
         """
         docstring
         """
@@ -62,6 +62,7 @@ class ConcolicResult(object):
         self.conflict_pcs = {}
         self.conflicting_bytes = {}
         self.symbol_to_mod_value = {}
+        self.mod_output = b""
         with open(index_file, 'r') as f:
             for line in f:
                 entries = line.split(', ')
@@ -176,10 +177,12 @@ class ConcolicResult(object):
                     local_conflicting_bytes.append(splited[2])
 
         if outdir != "":
-            for br in self.executed_branches:
-                if br.flippable:
-                    br.set_flipped_input(file_to_bytes(
-                        join(outdir, str(br.count))))
+            self.mod_output = file_to_bytes(join(outdir, "0"))
+            if not noflip:
+                for br in self.executed_branches:
+                    if br.flippable:
+                        br.set_flipped_input(file_to_bytes(
+                            join(outdir, str(br.count))))
 
     def __str__(self):
         """
@@ -196,6 +199,17 @@ class ConcolicResult(object):
         while ind >= len(bs):
             bs.extend(bs[:ilen])
         bs[ind] = val
+
+    def generate_base_input(self, seed_fn, outdir):
+        orig: bytearray
+        with open(seed_fn, 'rb') as f:
+            orig = bytearray(f.read())
+            ilen = len(orig)
+            for k, v in self.mod_value.items():
+                self._bytearray_set(orig, k, v, ilen)
+
+        with open(join(outdir, '0'), 'wb') as o:
+            o.write(orig)
 
     def generate_inverted_input(self, seed_fn, outdir):
         """
@@ -298,6 +312,17 @@ class ConcolicResult(object):
                 result += 1
         return result
 
+    def symbolic_branches_ips(self):
+        sym_branches_ips = set()
+        for br in self.executed_branches:
+            if br.flippable:
+                sym_branches_ips.add(br.pc)
+        return sym_branches_ips
+
+    def execution_score(self) -> int:
+        # #Unique symbolic branches - #symbolic branches
+        return 10000*len(self.symbolic_branches_ips()) - len(self.executed_branches)
+
     def score_after_first_appearence(self, pc):
         """
         docstring
@@ -394,6 +419,13 @@ class ConcolicResult(object):
                 return True
         return False
 
+    def new_branches(self, ip_set):
+        new = set()
+        for br in self.executed_branches:
+            if br.flippable and br.pc not in ip_set:
+                new.add(br.pc)
+        return new
+
     def set_jcc_mod(self, jcc_mod):
         self.jcc_mod = jcc_mod
         self.jcc_mod_set = True
@@ -425,6 +457,13 @@ class ConcolicResult(object):
                 )
                 path.append(a)
         return path
+
+    def satisfy(self, branch_pc, cond):
+        for br in self.executed_branches:
+            if br.pc == branch_pc:
+                if br.cond != cond:
+                    return False
+        return True
 
 
 if __name__ == '__main__':

@@ -5,7 +5,8 @@ import fcntl
 from tempdir import TempDir
 from os.path import join, dirname, abspath
 
-
+RECORD_ERROR_CODE = 2
+MAPPING_ERROR_CODE = 3
 BASE_DIR = dirname(abspath(__file__))
 DRIFUZZ = abspath(join(BASE_DIR, "..", "Drifuzz"))
 PANDA_SRC = abspath(join(BASE_DIR, "..", "panda"))
@@ -125,11 +126,12 @@ def get_extra_args(target, socket='', prog='', tempdir=''):
 
     return extra_args
 
+
 class Locker:
-    def __enter__ (self):
+    def __enter__(self):
         self.fp = open("./lockfile.lck")
         fcntl.flock(self.fp.fileno(), fcntl.LOCK_EX)
 
-    def __exit__ (self, _type, value, tb):
+    def __exit__(self, _type, value, tb):
         fcntl.flock(self.fp.fileno(), fcntl.LOCK_UN)
         self.fp.close()
