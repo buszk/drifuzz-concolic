@@ -28,3 +28,9 @@ work/
 
 saves/
 crafted_inputs/
+
+# vscode related
+.pyre/
+.pyre_configuration
+.vscode/
+.watchmanconfig
