@@ -94,7 +94,7 @@ common_extra_args = ['-m', '1G']
 common_extra_args += ['-nographic', '-no-acpi']
 
 
-def get_extra_args(target, socket='', prog='', tempdir=''):
+def get_extra_args(target, socket='', prog='', tempdir='', usb=False):
     orig = target
     if is_test_target(target):
         target = 'drifuzz-test'
@@ -118,11 +118,20 @@ def get_extra_args(target, socket='', prog='', tempdir=''):
 
     extra_args += ['-device', drifuzz_dev_arg]
 
-    extra_args += ['-net', 'user']
-    if target != 'drifuzz-test':
-        extra_args += ['-net', f'nic,model={target}']
+    if not usb:
+        # PCI Device
+        extra_args += ['-net', 'user']
+        if target != 'drifuzz-test':
+            extra_args += ['-net', f'nic,model={target}']
+        else:
+            extra_args += ['-net', f'nic,model={orig}']
     else:
-        extra_args += ['-net', f'nic,model={orig}']
+        # USB Device
+        extra_args += ['-usb']
+        extra_args += ['-device', 'qemu-xhci,id=xhci']
+        extra_args += ['-device', target]
+        extra_args += ['-usbDescFile', '/dev/urandom',  # '/home/zekun/Workspace/git/USBFuzz/seeds/usb_s2a2s6m',
+                       '-usbDataFile', '/dev/urandom']
 
     return extra_args
 

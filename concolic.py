@@ -45,6 +45,7 @@ parser.add_argument('--tempdir', default=False, action="store_true")
 parser.add_argument('--id', default="", type=str)
 parser.add_argument('--fixer_config', default="", type=str)
 parser.add_argument('--noflip', default=False, action="store_true")
+parser.add_argument('--usb', default=False, action="store_true")
 args = parser.parse_args()
 
 outdir = get_out_dir(args.target)
@@ -156,9 +157,9 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
     target = args.target
     if args.tempdir:
         extra_args = get_extra_args(
-            target, socket=socket_file, tempdir=tempdirname)
+            target, socket=socket_file, tempdir=tempdirname, usb=args.usb)
     else:
-        extra_args = get_extra_args(target, socket=socket_file)
+        extra_args = get_extra_args(target, socket=socket_file, usb=args.usb)
     extra_args += form_jcc_mod_option()
 
     trim_failed = True
