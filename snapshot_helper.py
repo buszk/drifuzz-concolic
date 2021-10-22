@@ -66,13 +66,17 @@ print("Login prompt")
 serial_session.sendline('root')
 serial_session.expect('root@syzkaller:~# ')
 print("Logged in")
+# Remove e1000 if exist
+if args.usb:
+    serial_session.sendline('rmmod e1000')
+    serial_session.expect('root@syzkaller:~# ')
 # Load dependent kernels
 serial_session.sendline(
     f'modprobe -v -n {args.target} |sed \$d > load_dep_module.sh')
 serial_session.expect('root@syzkaller:~# ')
 serial_session.sendline('bash load_dep_module.sh')
 serial_session.expect('root@syzkaller:~# ')
-serial_session.sendline('lsmod')
+serial_session.sendline('cat /proc/modules')
 serial_session.expect('root@syzkaller:~# ')
 monitor_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 monitor_sock.connect(monitor_socket_f)

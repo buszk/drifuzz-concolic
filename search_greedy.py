@@ -17,6 +17,7 @@ parser.add_argument("target")
 parser.add_argument("input")
 parser.add_argument("--resume", default=False, action="store_true")
 parser.add_argument("--mutate", default=False, action="store_true")
+parser.add_argument('--usb', default=False, action="store_true")
 args = parser.parse_args()
 
 br_model = {}  # {br: Cond}
@@ -308,7 +309,11 @@ def run_concolic(target, inp, zeros=[], ones=[], others=[], target_br=0, fixer={
                        json.dumps({str(k): [str(x) for x in v] for k, v in fixer.items()})]
 
     with open(get_concolic_log(), 'a+') as f:
-        cmd = ['./concolic.py', target, inp] + extra_args
+        cmd = ['./concolic.py', target, inp]
+        if args.usb:
+            cmd += ['--usb']
+        cmd += extra_args
+        cmd += ['--noflip']
         print(' '.join(cmd))
         p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
                              stdout=f, stderr=f)
