@@ -67,7 +67,17 @@ addrs_config = {
     "orinoco_pci": {
         "orinoco_pci": [0xffffffffa0038000, 16384],
         "orinoco": [0xffffffffa0000000, 225280],
-    }
+    },
+    "ath9k_htc": {
+        "ath9k_htc": [0xffffffffa0140000, 274432],
+        "ath9k_common": [0xffffffffa0128000, 81920],
+        "ath9k_hw": [0xffffffffa0018000, 1093632],
+        "ath": [0xffffffffa0000000, 90112],
+    },
+    "rsi_usb": {
+        "rsi_usb": [0xffffffffa0040000, 36864],
+        "rsi_91x": [0xffffffffa0000000, 233472],
+    },
 }
 
 addr = 0
