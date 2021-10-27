@@ -78,6 +78,9 @@ addrs_config = {
         "rsi_usb": [0xffffffffa0040000, 36864],
         "rsi_91x": [0xffffffffa0000000, 233472],
     },
+    "ar5523": {
+        "ar5523": [0xffffffffa0000000, 73728],
+    },
 }
 
 addr = 0
