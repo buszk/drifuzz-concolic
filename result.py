@@ -135,7 +135,7 @@ class ConcolicResult(object):
                         seed_index = self.input2seed[input_index]
                         inverted_vals[seed_index] = new_val
                     else:
-                        print('Some input_index is not mapped to seed_index')
+                        print(f'Input_index {input_index} is not mapped to seed_index')
                         print('Maybe qemu simulated some reg')
 
                 elif 'JCC Mod Output End' in line:

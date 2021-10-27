@@ -90,7 +90,7 @@ def get_pandalog(target):
     return join(BASE_DIR, work, target, f"{target}.plog")
 
 
-common_extra_args = ['-m', '1G']
+common_extra_args = ['-m', '512M']
 common_extra_args += ['-nographic', '-no-acpi']
 
 
@@ -129,9 +129,10 @@ def get_extra_args(target, socket='', prog='', tempdir='', usb=False):
         # USB Device
         extra_args += ['-usb']
         extra_args += ['-device', 'qemu-xhci,id=xhci']
+
         extra_args += ['-device', target]
         extra_args += ['-usbDescFile', '/dev/urandom',  # '/home/zekun/Workspace/git/USBFuzz/seeds/usb_s2a2s6m',
-                       '-usbDataFile', '/dev/urandom']
+                       '-usbDataFile', '/dev/zero']
 
     return extra_args
 
