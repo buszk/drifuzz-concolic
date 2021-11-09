@@ -363,6 +363,7 @@ def search_greedy():
     nonflippable = set()
     new_branch = True
     output = b''
+    repeating_branches = set()
     with open(args.input, "rb") as f:
         output = f.read()
     if cur_input == b'':
@@ -398,38 +399,60 @@ def search_greedy():
                                      Cond], ConcolicResult] = {}
         prefered_results_old: Dict[Tuple[int,
                                          Cond], ConcolicResult] = {}
+
+        def run_branch_condition(br, c):
+            print(time.ctime())
+            print(f"Trying ({hex(br)}, {c})")
+            bytes_to_file(get_out_file(0), cur_input)
+            concolic_result = run_concolic_model(args.target, deepcopy(
+                get_out_file(0)), merge_dict(deepcopy(br_model), {br: c}))
+            if concolic_result:
+                print(
+                    f"({hex(br)}, {c}) gets score {concolic_result.execution_score()}")
+                if concolic_result.new_branches(br_ips):
+                    print(
+                        f"Found new branches with choice ({hex(br)}, {c})")
+                    print([hex(br)
+                           for br in concolic_result.new_branches(br_ips)])
+                    prefered_results[(br, c)] = concolic_result
+                    print(
+                        f"Outfile head: {concolic_result.mod_output[:4]}")
+                else:
+                    prefered_results_old[(br, c)] = concolic_result
+                return concolic_result
+            else:
+                nonflippable.add(br)
+                return None
+
         for br in new_branch_ips:
             if br in br_model or br in nonflippable:
                 continue
+            count = 0
             for c in [True, False]:
                 # Skip if current path already satisfies branch condition
                 if result.satisfy(br, c):
                     continue
+                if run_branch_condition(br, c):
+                    count += 1
 
-                print(time.ctime())
-                print(f"Trying ({hex(br)}, {c})")
-                bytes_to_file(get_out_file(0), cur_input)
-                concolic_result = run_concolic_model(args.target, deepcopy(
-                    get_out_file(0)), merge_dict(deepcopy(br_model), {br: c}))
-                if concolic_result:
-                    print(
-                        f"({hex(br)}, {c}) gets score {concolic_result.execution_score()}")
-                    if concolic_result.new_branches(br_ips):
-                        print(
-                            f"Found new branches with choice ({hex(br)}, {c})")
-                        print([hex(br)
-                               for br in concolic_result.new_branches(br_ips)])
-                        prefered_results[(br, c)] = concolic_result
-                        print(
-                            f"Outfile head: {concolic_result.mod_output[:4]}")
-                    else:
-                        prefered_results_old[(br, c)] = concolic_result
-                else:
-                    nonflippable.add(br)
+            # This is a repeating branch. Both sides are feasible.
+            if count == 2:
+                repeating_branches.add(br)
+
+        # Try utilize repeating branches
+        if len(prefered_results) == 0:
+            print(f"No new branches found. Try repeating branches")
+            for br in repeating_branches:
+                if br in br_model or br in nonflippable:
+                    continue
+
+                run_branch_condition(br, True)
+                run_branch_condition(br, False)
 
         if len(prefered_results) == 0:
             print(f"No new branches found. Exit loop")
             break
+
         best_preferred = reduce(
             lambda x, y: x if x[1].execution_score() >= y[1].execution_score() else y, prefered_results.items())
         print(
