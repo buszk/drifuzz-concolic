@@ -103,7 +103,7 @@ def get_extra_args(target, socket='', prog='', tempdir='', usb=False):
     extra_args += ["-kernel",
                    f"{DRIFUZZ}/linux-module-build/arch/x86_64/boot/bzImage"]
     extra_args += ["-append",
-                   f"console=ttyS0 nokaslr root=/dev/sda earlyprintk=serial net.ifnames=0 modprobe.blacklist={target}"]
+                   f"console=ttyS0 nokaslr root=/dev/sda earlyprintk=serial net.ifnames=0 modprobe.blacklist=e1000,{target}"]
 
     drifuzz_dev_arg = 'drifuzz'
     drifuzz_dev_arg += f',target={target}'
@@ -132,7 +132,7 @@ def get_extra_args(target, socket='', prog='', tempdir='', usb=False):
 
         extra_args += ['-device', target]
         extra_args += ['-usbDescFile', '/dev/urandom',  # '/home/zekun/Workspace/git/USBFuzz/seeds/usb_s2a2s6m',
-                       '-usbDataFile', '/dev/zero']
+                       '-usbDataFile', '/dev/urandom']
 
     return extra_args
 

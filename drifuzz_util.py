@@ -105,9 +105,14 @@ class CommandHandler:
         self.fixer = fixer
         self.usb = usb
 
-        with open(seed, 'rb') as infile:
-            self.payload = infile.read()
-            self.payload_len = len(self.payload)
+        if seed == '/dev/urandom':
+            with open(seed, 'rb') as infile:
+                self.payload = infile.read(0xffff)
+                self.payload_len = len(self.payload)
+        else:
+            with open(seed, 'rb') as infile:
+                self.payload = infile.read()
+                self.payload_len = len(self.payload)
 
     def get_data_by_size(self, size, ind):
         # res = b''
