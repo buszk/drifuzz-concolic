@@ -59,6 +59,7 @@ class SocketThread (threading.Thread):
                     try:
                         ty: bytearray[8] = connection.recv(8)
                         if ty == b'':
+                            print('Close connection: no more data')
                             break
                         _ty = struct.unpack('<Q', ty)[0]
                         opt = opts[Command(_ty)]
@@ -97,15 +98,21 @@ class SocketThread (threading.Thread):
 
 class CommandHandler:
 
-    def __init__(self, gm, seed='random_seed', fixer=None):
+    def __init__(self, gm, seed='random_seed', fixer=None, usb=False):
         self.gm = gm
         self.read_cnt: dict = {}
         self.dma_cnt: dict = {}
         self.fixer = fixer
+        self.usb = usb
 
-        with open(seed, 'rb') as infile:
-            self.payload = infile.read()
-            self.payload_len = len(self.payload)
+        if seed == '/dev/urandom':
+            with open(seed, 'rb') as infile:
+                self.payload = infile.read(0xffff)
+                self.payload_len = len(self.payload)
+        else:
+            with open(seed, 'rb') as infile:
+                self.payload = infile.read()
+                self.payload_len = len(self.payload)
 
     def get_data_by_size(self, size, ind):
         # res = b''
@@ -159,7 +166,7 @@ class CommandHandler:
             n = self.dma_cnt[k]
             self.dma_cnt[k] += 1
 
-        return self.gm.get_dma_idx(k, size, n, reuse=True)
+        return self.gm.get_dma_idx(k, size, n, reuse=(True and not self.usb))
 
     def get_dma_data(self, k, size):
         idx = self.get_dma_idx(k, size)

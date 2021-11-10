@@ -46,6 +46,7 @@ parser.add_argument('--id', default="", type=str)
 parser.add_argument('--fixer_config', default="", type=str)
 parser.add_argument('--noflip', default=False, action="store_true")
 parser.add_argument('--usb', default=False, action="store_true")
+parser.add_argument('--notest', default=False, action="store_true")
 args = parser.parse_args()
 
 outdir = get_out_dir(args.target)
@@ -112,7 +113,10 @@ def record_command(target, extra_args, cmd, max_time_seconds):
                           cmd, copy_dir, get_recording_path(
                         target), expect_prompt, cdrom,
                     ),
-                    kwargs={'extra_args': extra_args})
+                    kwargs={
+                        'extra_args': extra_args,
+                        'timeout': 5 if args.usb else 1200
+                    })
 
         p.start()
         for i in range(max_time_seconds):
@@ -129,7 +133,6 @@ def record_command(target, extra_args, cmd, max_time_seconds):
 def run_concolic(do_record=True, do_trim=True, do_replay=True):
 
     ret = 0
-    trim_failed = False
     socket_file = ""
     tf = None
     socket_thread = None
@@ -147,7 +150,7 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
             print(fixer_config)
             fixer = Fixer(fixer_config)
         command_handler = CommandHandler(
-            global_model, seed=args.seed, fixer=fixer)
+            global_model, seed=args.seed, fixer=fixer, usb=args.usb)
         tf = tempfile.NamedTemporaryFile()
         socket_thread = SocketThread(command_handler, tf.name)
         socket_thread.start()
@@ -162,17 +165,20 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
         extra_args = get_extra_args(target, socket=socket_file, usb=args.usb)
     extra_args += form_jcc_mod_option()
 
-    trim_failed = True
+    trim_succeed = False
     # Record
     if do_record:
 
-        if not record_command(target, extra_args, ["ls"], 10):
+        if not args.notest and not record_command(target, extra_args, ["ls"], 10):
             print("Even ls command timeout, recreate snapshot and try again")
-            p = subprocess.Popen(
-                ["python3", "-u", f"{dirname(__file__)}/snapshot_helper.py", target])
-            p.wait()
+            create_snapshot_cmd = [
+                "python3", "-u", f"{dirname(__file__)}/snapshot_helper.py", target]
+            if args.usb:
+                create_snapshot_cmd += ['--usb']
+            subprocess.Popen(create_snapshot_cmd).wait()
             assert record_command(target, extra_args, ["ls"], 10)
         try:
+            # Regard record as hang if exceed MAX_RECORD_SECONDS
             MAX_RECORD_SECONDS = 20
             if not record_command(target, extra_args, get_cmd(target), MAX_RECORD_SECONDS):
                 print('PANDA record timedout!')
@@ -203,7 +209,7 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
             return 1
 
         # Trim
-        if do_trim:
+        if do_trim and not args.usb:
             cmd = [join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
                    "-replay", get_recording_path(target),
                    "-panda", f"scissors:name={get_reduced_recording_path(target)},start={get_trim_start()-1000}",
@@ -211,25 +217,18 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
             cmd += extra_args
             p = subprocess.Popen(cmd)
             p.wait()
-            if p.returncode != 0:
+            if p.returncode == 0:
+                trim_succeed = True
+            else:
                 # global_model.save_data(args.target)
                 # socket_thread.stop()
                 print('PANDA Trim failed!')
-                trim_failed = True
                 # return 1
-            else:
-                trim_failed = False
-        else:
-            trim_failed = True
 
     # Replay
     if do_replay:
-        env = {
-            "LD_PRELOAD": "/home/zekun/bpf/install/lib/libz3.so",
-            **os.environ
-        }
-        record_path = get_recording_path(
-            target) if trim_failed else get_reduced_recording_path(target)
+        record_path = get_reduced_recording_path(
+            target) if trim_succeed else get_recording_path(target)
         cmd = [join(PANDA_BUILD, "x86_64-softmmu", "panda-system-x86_64"),
                "-replay", record_path,
                "-panda", f"tainted_drifuzz:target_branch_pc={args.target_branch_pc},after_target_limit={args.after_target_limit}",
@@ -249,7 +248,7 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
             cmd = ["gdb", "-ex", "r", "--args"] + cmd
 
         print(" ".join(cmd))
-        p = subprocess.Popen(cmd, env=env)
+        p = subprocess.Popen(cmd)
         p.wait()
         if p.returncode != 0:
             if socket_thread:
