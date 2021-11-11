@@ -232,7 +232,7 @@ class GlobalModel():
         self.key_count = 0
         self.tosave = True
 
-    def __check_repeating_key(self, key, n=2000):
+    def __check_repeating_key(self, key, n=4000):
         if (key == self.last_key):
             self.key_count += 1
         else:

@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import time
+import hashlib
 import argparse
 import subprocess
 from copy import deepcopy
@@ -85,6 +86,14 @@ def file_to_bytes(fname):
 def bytes_to_file(fname, bs):
     with open(fname, 'wb') as f:
         return f.write(bs)
+
+
+def bytes_to_hash(bs):
+    hash = hashlib.sha1(bs).hexdigest()
+    hashfile = get_out_file(hash)
+    with open(hashfile, 'wb') as f:
+        f.write(bs)
+    return hashfile
 
 
 def remove_if_exits(fname):
@@ -404,8 +413,9 @@ def search_greedy():
             print(time.ctime())
             print(f"Trying ({hex(br)}, {c})")
             bytes_to_file(get_out_file(0), cur_input)
-            concolic_result = run_concolic_model(args.target, deepcopy(
-                get_out_file(0)), merge_dict(deepcopy(br_model), {br: c}))
+            infile = bytes_to_hash(cur_input)
+            concolic_result = run_concolic_model(
+                args.target, infile, merge_dict(deepcopy(br_model), {br: c}))
             if concolic_result:
                 print(
                     f"({hex(br)}, {c}) gets score {concolic_result.execution_score()}")
@@ -459,13 +469,17 @@ def search_greedy():
             f"Best preferred branch-condition is ({hex(best_preferred[0][0])}, {best_preferred[0][1]})  with score {best_preferred[1].execution_score()}")
         br_model[best_preferred[0][0]] = best_preferred[0][1]
         result = best_preferred[1]
-        new_branch_ips = result.new_branches(br_ips)
-        br_ips = result.symbolic_branches_ips()
+        ofile = bytes_to_hash(result.mod_output)
+        raw_result = run_concolic_model(args.target, ofile, {})
+        new_branch_ips = raw_result.new_branches(br_ips)
+        br_ips = raw_result.symbolic_branches_ips()
+        bytes_to_file(get_out_file(f"prev.{iteration-1}"), cur_input)
         cur_input = result.mod_output
+        bytes_to_file(get_out_file(f"iter.{iteration-1}"), cur_input)
         print("[search_group] current model:")
         print_model(br_model)
 
-    bytes_to_file(get_out_file(0), output)
+    bytes_to_file(get_out_file(0), cur_input)
 
 
 def search():

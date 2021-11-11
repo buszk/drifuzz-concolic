@@ -200,8 +200,7 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
             return MAPPING_ERROR_CODE
 
         mmio_count = len(open(drifuzz_index_file()).readlines())
-        if (mmio_count > 10000 and args.target_branch_pc == 0) or \
-                (mmio_count > 200000):
+        if mmio_count > 100000:
             print(
                 f"There is way too many mmio ({mmio_count}) in the exeuction. Terminate")
             if socket_thread:
