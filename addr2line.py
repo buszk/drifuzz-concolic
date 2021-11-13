@@ -82,6 +82,11 @@ addrs_config = {
     "ar5523": {
         "ar5523": [0xffffffffa0000000, 73728],
     },
+    "stmmac_pci": {
+        "stmmac_pci": [0xffffffffa0090000, 28672],
+        "stmmac": [0xffffffffa0010000, 491520],
+        "phylink": [0xffffffffa0000000, 61440],
+    },
 }
 
 addr = 0
