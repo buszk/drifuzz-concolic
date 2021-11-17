@@ -224,13 +224,14 @@ def json_dumper(obj):
 
 class GlobalModel():
 
-    def __init__(self):
+    def __init__(self, forcesave=False):
         self.next_free_idx = 0
         self.read_idx: dict = {}
         self.dma_idx: dict = {}
         self.last_key = (0, 0, 0)
         self.key_count = 0
         self.tosave = True
+        self.forcesave=forcesave
 
     def __check_repeating_key(self, key, n=4000):
         if (key == self.last_key):
@@ -287,7 +288,7 @@ class GlobalModel():
             return 0
 
     def save_data(self, target):
-        if not self.tosave:
+        if not self.forcesave and not self.tosave:
             print("Not saving because of repetitive query")
             return
         print('save_data', target)

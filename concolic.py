@@ -47,6 +47,7 @@ parser.add_argument('--fixer_config', default="", type=str)
 parser.add_argument('--noflip', default=False, action="store_true")
 parser.add_argument('--usb', default=False, action="store_true")
 parser.add_argument('--notest', default=False, action="store_true")
+parser.add_argument('--forcesave', default=False, action="store_true")
 args = parser.parse_args()
 
 outdir = get_out_dir(args.target)
@@ -140,7 +141,7 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
     if args.socket:
         socket_file = args.socket
     else:
-        global_model = GlobalModel()
+        global_model = GlobalModel(forcesave=args.forcesave)
         global_model.load_data(args.target)
         fixer = None
         if args.fixer_config:
