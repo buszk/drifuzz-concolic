@@ -296,6 +296,9 @@ def run_concolic(target, inp, zeros=[], ones=[], others=[], target_br=0, fixer={
     print(f'Executing input {inp}')
 
     extra_args = []
+    if len(zeros) == 0 and len(ones) == 0:
+        extra_args += ['--forcesave']
+
     if len(zeros) > 0:
         extra_args += ['--zeros']
         extra_args += [str(hex(x)) for x in zeros]
