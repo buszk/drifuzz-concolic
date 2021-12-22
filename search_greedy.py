@@ -438,12 +438,17 @@ def search_greedy():
                 return None
 
         for br in new_branch_ips:
-            if br in br_model or br in nonflippable:
+            if br in br_model:
+                print(f"Skipping {br} because it's already in model")
+                continue
+            if br in nonflippable:
+                print(f"Skipping {br} because it's nonflippable")
                 continue
             count = 0
             for c in [True, False]:
                 # Skip if current path already satisfies branch condition
                 if result.satisfy(br, c):
+                    print(f"Skipping {(br,c)} because it's satisfied")
                     continue
                 if run_branch_condition(br, c):
                     count += 1
@@ -476,6 +481,7 @@ def search_greedy():
         raw_result = run_concolic_model(args.target, ofile, {})
         new_branch_ips = raw_result.new_branches(br_ips)
         br_ips = raw_result.symbolic_branches_ips()
+        result = raw_result
         bytes_to_file(get_out_file(f"prev.{iteration-1}"), cur_input)
         cur_input = result.mod_output
         bytes_to_file(get_out_file(f"iter.{iteration-1}"), cur_input)
