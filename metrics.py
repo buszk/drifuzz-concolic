@@ -46,4 +46,7 @@ print("="*40)
 print(f"Feasible: {len(result.conflicting_bytes)==0}")
 print(f"Number of total concolic branches: {result.num_concolic_branch()}")
 print(f"Number of unique concolic branches: {len(result.symbolic_branches_ips())}")
-print(f"Concolic branches: {result.symbolic_branches_ips()}")
+
+print("Concolic branches: {}")
+for ip in result.symbolic_branches_ips():
+    print(hex(ip))
