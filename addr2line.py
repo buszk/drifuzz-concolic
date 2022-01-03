@@ -1,94 +1,53 @@
 #!/usr/bin/env python3
 import sys
+import json
 import argparse
+import tempfile
 import subprocess
 import intervaltree
-from common import LINUX_BUILD
-from os.path import expanduser, join, isfile
+from common import LINUX_BUILD, work
+from os.path import expanduser, join, exists
 
 parser = argparse.ArgumentParser()
 parser.add_argument('target')
 parser.add_argument('addr', type=str)
+parser.add_argument('--clean', default=False, action='store_true')
 args = parser.parse_args()
 
-addrs_config = {
-    "ath10k_pci": {
-        "ath10k_pci": [0xffffffffa01b0000, 126976],
-        "ath10k_core": [0xffffffffa0018000, 1642496],
-        "ath": [0xffffffffa0000000, 90112],
-    },
-    "ath9k": {
-        "ath9k": [0xffffffffa0128000, 352256],
-        "ath9k_common": [0xffffffffa0118000, 32768],
-        "ath9k_hw": [0xffffffffa0018000, 1024000],
-        "ath": [0xffffffffa0000000, 90112],
-    },
-    "ath5k": {
-        "ath5k": [0xffffffffa0018000, 536576],
-        "ath": [0xffffffffa0000000, 90112],
-    },
-    "iwlwifi": {
-        "iwlwifi": [0xffffffffa0000000, 798720],
-    },
-    "rtl818x_pci": {
-        "rtl818x_pci": [0xffffffffa0008000, 114688],
-        "eeprom_93cx6": [0xffffffffa0000000, 16384],
-    },
-    "rtl8723ae": {
-        "rtl8723ae": [0xffffffffa0100000, 372736],
-        "btcoexist": [0xffffffffa0080000, 491520],
-        "rtl_pci": [0xffffffffa0060000, 98304],
-        "rtl8723_common": [0xffffffffa0050000, 45056],
-        "rtlwifi": [0xffffffffa0000000, 311296],
-    },
-    "rtwpci": {
-        "rtwpci": [0xffffffffa00b0000, 61440],
-        "rtw88": [0xffffffffa0000000, 696320],
-    },
-    "adm8211": {
-        "adm8211": [0xffffffffa0008000, 86016],
-        "eeprom_93cx6": [0xffffffffa0000000, 16384],
-    },
-    "8139cp": {
-        "8139cp": [0xffffffffa0018000, 69632],
-        "8139too": [0xffffffffa0008000, 57344],
-        "mii": [0xffffffffa0000000, 28672],
-    },
-    "atlantic": {
-        "atlantic": [0xffffffffa0000000, 320000],
-    },
-    "snic": {
-        "snic": [0xffffffffa0000000, 262144],
-    },
-    "mwifiex_pcie": {
-        "mwifiex_pcie": [0xffffffffa00e0000, 118784],
-        "mwifiex": [0xffffffffa000000, 917504],
-    },
-    "orinoco_pci": {
-        "orinoco_pci": [0xffffffffa0038000, 16384],
-        "orinoco": [0xffffffffa0000000, 225280],
-    },
-    "ath9k_htc": {
-        "ath9k_htc": [0xffffffffa0140000, 274432],
-        "ath9k_common": [0xffffffffa0128000, 81920],
-        "ath9k_hw": [0xffffffffa0018000, 1093632],
-        "ath": [0xffffffffa0000000, 90112],
-    },
-    "rsi_usb": {
-        "rsi_usb": [0xffffffffa0040000, 36864],
-        "rsi_91x": [0xffffffffa0008000, 241664],
-        "btrsi": [0xffffffffa0000000, 16384]
-    },
-    "ar5523": {
-        "ar5523": [0xffffffffa0000000, 73728],
-    },
-    "stmmac_pci": {
-        "stmmac_pci": [0xffffffffa0090000, 28672],
-        "stmmac": [0xffffffffa0010000, 491520],
-        "phylink": [0xffffffffa0000000, 61440],
-    },
-}
+addr_sav = join(work, args.target, 'modaddr.sav')
 
+def parse_concolic_log():
+    config = {}
+    cl = join(work, args.target, 'concolic.log')
+    with open(cl) as f:
+        for line in f:
+            print(line)
+            if not 'Live 0x' in line:
+                continue
+            mod = line.split(' ')[0]
+            if mod in config:
+                break
+            size = int(line.split(' ')[1])
+            addr = int(line.split(' ')[5], 16)
+            config[mod] = [addr, size]
+        return config
+
+if exists(addr_sav) and not args.clean:
+    with open(addr_sav, 'r') as f:
+        config = json.load(f)
+        print(config)
+else:
+    cl = join(work, args.target, 'concolic.log')
+    if exists(cl):
+        config = parse_concolic_log()
+    else:
+        print("Neither save nor concolic.log exist.")
+        print("Cannot figure out base addresses for module")
+        print(f"   ./snapshot_helper.py {args.target}")
+        sys.exit(1)
+
+    with open(addr_sav, 'w+') as f:
+        json.dump(config, f)
 addr = 0
 if len(args.addr) >= 2 and args.addr[0:2] == '0x':
     addr = int(args.addr[2:], 16)
@@ -98,7 +57,7 @@ else:
     addr = int(args.addr)
 
 tree = intervaltree.IntervalTree()
-for mod, addrs in addrs_config[args.target].items():
+for mod, addrs in config.items():
     tree.addi(addrs[0], addrs[0] + addrs[1], mod)
 
 if (len(tree[addr]) == 1):
