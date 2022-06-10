@@ -19,6 +19,7 @@ parser.add_argument("input")
 parser.add_argument("--resume", default=False, action="store_true")
 parser.add_argument("--mutate", default=False, action="store_true")
 parser.add_argument('--usb', default=False, action="store_true")
+parser.add_argument("--noterm", default=False, action="store_true")
 args = parser.parse_args()
 
 br_model = {}  # {br: Cond}
@@ -170,6 +171,14 @@ def get_lists_from_model(model, blacklist={}, ignore=0):
         else:
             others.append(k)
     return zeros, ones, others, jcc_pcs
+
+
+def log_has_interface():
+    with open(get_concolic_log()) as f:
+        for line in f.readlines():
+            if "wlan0:" in line or "eth0:" in line:
+                return True
+    return False
 
 
 def run_concolic_model(target, inp, model):
@@ -487,6 +496,10 @@ def search_greedy():
         bytes_to_file(get_out_file(f"iter.{iteration-1}"), cur_input)
         print("[search_group] current model:")
         print_model(br_model)
+
+        if not args.noterm and log_has_interface():
+            print(f"Log file already shows presence of network interface. Terminate.")
+            break
 
     bytes_to_file(get_out_file(0), cur_input)
 
