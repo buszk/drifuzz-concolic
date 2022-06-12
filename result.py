@@ -48,7 +48,7 @@ class ConcolicResult(object):
     docstring
     """
 
-    def __init__(self, path_constraints_file, index_file, noflip=False, outdir=""):
+    def __init__(self, path_constraints_file, index_file, noflip=False, outdir="", fixer=None):
         """
         docstring
         """
@@ -75,14 +75,22 @@ class ConcolicResult(object):
                 for i in range(size):
                     self.input2seed[input_index+i] = seed_index+i
                 if len(entries) > 3:
-                    # mmio
+                    # mmio/consistent dma
                     assert(entries[3].split(' ')[0] == 'address:')
+                    assert(entries[4].split(' ')[0] == 'region:')
                     address = int(entries[3].split(' ')[1], 16)
+                    region = int(entries[4].split(' ')[1], 16)
                     if address not in self._appeared_mmio:
                         self.num_unique_mmio += 1
                         self._appeared_mmio[address] = True
+
+                    # If we use a fixer, make sure to modify the bytes
+                    if fixer and (region, address) in fixer:
+                        fixed_vals = fixer[(region, address)]
+                        for offset, value in fixed_vals:
+                            self.mod_value[seed_index + offset] = value
                 else:
-                    # dma
+                    # stream dma
                     pass
 
         with open(path_constraints_file, 'r') as f:

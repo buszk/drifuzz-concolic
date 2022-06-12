@@ -62,6 +62,15 @@ if args.tempdir:
     tempdirname = td.name
 
 
+fixer = None
+fixer_config: Dict[Tuple[int, int], List[Tuple[int, int]]] = {}
+if args.fixer_config:
+    json_dict = json.loads(args.fixer_config)
+    fixer_config = {literal_eval(k): [literal_eval(x) for x in v] for k, v in json_dict.items()}
+    print(fixer_config)
+    fixer = Fixer(fixer_config)
+
+
 def drifuzz_index_file():
     if args.tempdir and tempdirname:
         return join(tempdirname, 'drifuzz_index')
@@ -143,13 +152,6 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
     else:
         global_model = GlobalModel(forcesave=args.forcesave)
         global_model.load_data(args.target)
-        fixer = None
-        if args.fixer_config:
-            json_dict = json.loads(args.fixer_config)
-            fixer_config: Dict[Tuple[int, int], List[Tuple[int, int]]] = {
-                literal_eval(k): [literal_eval(x) for x in v] for k, v in json_dict.items()}
-            print(fixer_config)
-            fixer = Fixer(fixer_config)
         command_handler = CommandHandler(
             global_model, seed=args.seed, fixer=fixer, usb=args.usb)
         tf = tempfile.NamedTemporaryFile()
@@ -269,7 +271,8 @@ def run_concolic(do_record=True, do_trim=True, do_replay=True):
 def parse_concolic():
     CR_result = ConcolicResult(
         drifuzz_path_constraints_file(),
-        drifuzz_index_file())
+        drifuzz_index_file(),
+        fixer=fixer_config)
     jcc_mod_pc = {}
     for pc in args.ones:
         jcc_mod_pc[int(pc, 16)] = 1

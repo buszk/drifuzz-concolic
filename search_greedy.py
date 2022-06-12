@@ -457,7 +457,7 @@ def search_greedy():
             for c in [True, False]:
                 # Skip if current path already satisfies branch condition
                 if result.satisfy(br, c):
-                    print(f"Skipping {(br,c)} because it's satisfied")
+                    print(f"Skipping {(hex(br),c)} because it's satisfied")
                     continue
                 if run_branch_condition(br, c):
                     count += 1
