@@ -48,7 +48,6 @@ if args.dryrun:
 
 serial_socket_f = tempfile.NamedTemporaryFile().name
 monitor_socket_f = tempfile.NamedTemporaryFile().name
-cmd = list(filter(lambda arg: arg != '-nographic', cmd))
 cmd.append('-serial')
 cmd.append(f'unix:{serial_socket_f},server,nowait')
 cmd.append('-monitor')
